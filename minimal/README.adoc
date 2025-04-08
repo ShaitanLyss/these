@@ -1,0 +1,17 @@
+= Minimal Feel++ example 
+
+
+.Compile and run the minimal Feel++ example
+[source,sh]
+----
+git clone https://github.com/feelpp/minimal
+mkdir build
+cd build
+cmake ../minimal
+----
+
+.Command line to run the minimal Feel++ application
+[source,sh]
+----
+mpirun -np 4 feelpp_min_minimal
+----
