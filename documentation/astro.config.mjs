@@ -9,7 +9,7 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			editLink: {
-				baseUrl: 'https://github.com/ShaitanLyss/these/edit/main',
+				baseUrl: 'https://github.com/ShaitanLyss/these/edit/main/documentation',
 			},
 			title: 'Hecate',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ShaitanLyss/these' }],
