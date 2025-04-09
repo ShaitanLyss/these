@@ -8,6 +8,9 @@ export default defineConfig({
 	base: '/these',
 	integrations: [
 		starlight({
+			editLink: {
+				baseUrl: 'https://github.com/ShaitanLyss/these/edit/main',
+			},
 			title: 'Hecate',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ShaitanLyss/these' }],
 			sidebar: [
@@ -17,10 +20,7 @@ export default defineConfig({
 				},
 				{
 					label: 'Guides',
-					items: [
-						// Each item here is one entry in the navigation menu.
-						{ label: 'Example Guide', slug: 'guides/example' },
-					],
+					autogenerate: { directory: 'guides' },
 				},
 				{
 					label: 'Reference',
