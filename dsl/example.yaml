@@ -1,0 +1,15 @@
+version: 0.1
+
+materials:
+  clay
+
+domain:
+  cuboid:
+    x: 0 .. 500 m
+    y: 0 .. 500 m
+    z: 0 .. 20 m 
+
+  regions:
+    
+    
+      
