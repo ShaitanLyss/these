@@ -1,7 +1,9 @@
 ---
-title: Getting Started
+title: Example Guide
 description: A guide in my new Starlight docs site.
 draft: true
+sidebar:
+    order: 100
 ---
 
 Guides lead a user through a specific task they want to accomplish, often with a sequence of steps.

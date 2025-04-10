@@ -1,5 +1,7 @@
 ---
 title: PHD Subject
+sidebar:
+    order: 1
 ---
 
 # A Modular, HPC-Oriented Library for Numerical PDE Resolution: From Building Blocks to AI-Driven Scheme Generation
