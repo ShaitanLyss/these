@@ -19,6 +19,8 @@ Structured space discretization.
 
 
 ## Numerical Method
+These methods produce an approximation of a solution to a problem, by the means
+of numerical computation.
 
 ### FEM
 Finite Elements Method.
@@ -44,6 +46,21 @@ For transient problems
 
 ### FVM
 
+### Coupling
+This allows the combination of different numerical methods, which can be useful
+for selecting the most appropriate method over a region or for multi-physics
+simulation.
+
+
+
 ## Computation
 ### Sparse Symetric Matrix
 ### Integration
+
+
+## Solvers
+
+### Preconditioned Krylov 
+
+### Multigrid solver
+
