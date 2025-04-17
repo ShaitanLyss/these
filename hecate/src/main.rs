@@ -1,3 +1,7 @@
+use hecate;
+
 fn main() {
-    println!("Hello, world!");
+    unsafe {
+        println!("{}", hecate::add(1, 2));
+    }
 }
