@@ -1,3 +1,0 @@
-/home/moonlyss/codes/these/hecate/build/CMakeFiles/hecate.dir
-/home/moonlyss/codes/these/hecate/build/CMakeFiles/edit_cache.dir
-/home/moonlyss/codes/these/hecate/build/CMakeFiles/rebuild_cache.dir
