@@ -1,0 +1,34 @@
+---
+title: Dependencies
+---
+
+import { LinkButton } from '@astrojs/starlight/components';
+
+
+## C++ Building Blocks
+
+### <span style="margin-right: 1rem;">PETSc</span> <LinkButton href="https://petsc.org/release/" icon="open-book" variant="minimal"/><LinkButton href="https://gitlab.com/petsc/petsc" icon="gitlab" variant="minimal"/>
+Massively parallel data structures and algorithms for scientific applications
+modeled by PDEs.
+
+
+## Rust CLI and main library
+
+### [Clap](https://docs.rs/clap/latest/clap/)
+CLI.
+
+### [Serde](https://serde.rs/)
+Data serialization and deserialization.
+
+### [Tera](https://keats.github.io/tera/)
+Template engine.
+
+Purpose : Template-based code generation.
+
+### [Schemars](https://graham.cool/schemars/)
+JSON Schema documents generation.
+
+Purpose : Generating a JSON schema describing the building blocks, for use by other applications.
+
+### [ThisError](https://docs.rs/thiserror/latest/thiserror/)
+Convenient way to create error types.

@@ -118,7 +118,7 @@ This research aims to develop a comprehensive and modular library for the numeri
 
 1. Bangerth, W., et al. (2007). "Deal.II—A General Purpose Object Oriented Finite Element Library." ACM Transactions on Mathematical Software.
 2. Balay, S., et al. (1997). "Efficient Management of Parallelism in Object-Oriented Numerical Software Libraries." Modern Software Tools in Scientific Computing.
-3. Karniadakis, G., et al. (2013). *Spectral Methods in Fluid Dynamics*. Springer.
+3. Karniadakis, G., et al. (1987). *Spectral Methods in Fluid Dynamics*. Springer.
 4. Karypis, G., & Kumar, V. (1998). "METIS: A Software Package for Partitioning Unstructured Graphs." University of Minnesota.
 
 ## Closing Words

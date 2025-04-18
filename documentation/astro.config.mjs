@@ -26,6 +26,10 @@ export default defineConfig({
 					label: 'Reference',
 					autogenerate: { directory: 'reference' },
 				},
+        {
+					label: 'Research',
+					autogenerate: { directory: 'research' },
+				},
 			],
 		}),
 	],
