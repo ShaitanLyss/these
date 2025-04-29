@@ -37,13 +37,15 @@ export default defineConfig({
     ],
     social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ShaitanLyss/these' }],
     plugins: [
-      catppucin({
-        dark: {},
-        light: {
-          // accent: "sky",
-          flavor: "latte"
-        }
-      })
+      // catppucin({
+      //   dark: {
+      //     flavor: "macchiato"
+      //   },
+      //   // light: {
+      //   //   // accent: "sky",
+      //   //   flavor: "latte"
+      //   // }
+      // })
     ],
     sidebar: [
       {

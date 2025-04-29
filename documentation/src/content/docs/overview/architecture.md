@@ -5,9 +5,16 @@ sidebar:
     order: 2
 ---
 
+```mermaid
+flowchart LR
+    D(Domain)
+    FE(Finite Element)
+    SD(Spatial Discretization) --> D
+    FEMSpace(Finite element space descritipion)
+    FE --> SD
+```
 
 
-- mesh
 
 ## FEM (Finite Element Method)
 1. Define the problem

@@ -6,6 +6,11 @@ html[data-theme="dark"] .beoe-light {
   display: none;
 }
 
+.beoe-dark, .beoe-light {
+  display: flex;
+  justify-content: center;
+}
+
 /* /* Dark mode colors. */ */
 /* :root { */
 /* 	--sl-color-accent-low: #3d112a; */

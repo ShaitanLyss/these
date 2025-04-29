@@ -30,7 +30,7 @@ flowchart TD
 
 <style>
 svg[class*='flowchart'] {
-    margin-left: 5.6rem;
+    margin-right: 5.6rem;
     margin-top: 3rem;
     margin-bottom: 2rem;
 }
