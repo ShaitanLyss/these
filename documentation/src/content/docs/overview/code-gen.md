@@ -16,15 +16,25 @@ This approach allows for great flexibility, while retaining performance as the e
 
 It is yet undecided if the resulting executable will support changing the values of parameters, or if a new compilation will occur. The choice will depend on the potential performance gains procured by statically linking parameter values.
 
+```mermaid
+flowchart TD
+    User -->|Visual Programming| CNS(Conceptual Numerical Scheme)
+    User -->|Code Programming| CNS
+    User -->|Natural Language| AI1(LLM)
+    AI1 --> CNS
+    CNS -->|Template Generation| GEN[Source Code]
+    CNS -->|LLM Generation| GEN
+    GEN --> Comp[Compilation]
+    Comp --> Executable
+```
+
 <style>
-img[src*='mermaid'] {
+svg[class*='flowchart'] {
     margin-left: 5.6rem;
     margin-top: 3rem;
     margin-bottom: 2rem;
 }
 </style>
-
-[![](https://mermaid.ink/img/pako:eNplUl1LwzAU_SvhPk3ohq3t-vEgSDeGsBVh6oOrD7G964pNUrIEp-v-u0nn_JiXEM6995xzySV7KESJkMC6EW_FhkpF7ic5JyYetijJcHjdPdZbTRtyJ0UlKWM1rzqSZstBKniBrbK9TDOUdWHQstggw4szi9QM-Wdwxsmo0tI4zCmvNK2wIze37mA-X3yZmczyfpQG9MJ7ZG1DFZIZcpRU1YJ3ZDbNVkuhZYHEDn_-KzGu5-wjwYDjEMHalb3qpqec9KbS96c7LLSiLw2CA5WsS0iU1OiA2QOjNoW9leSg7D5ySAwsqXzNIecHo2kpfxKCnWRS6GoDyZo2W5PptjTvmdTU7uu7KpGXKFOhuYLkynN7E0j2sDOp74_8MDTHjcLIjyIH3iEJvFEw9vzQiz3PjYN4HBwc-OjHXo6i0I9_hwNY1krIxfFD9P_i8AnPEKlt?type=png)](https://mermaid.live/edit#pako:eNplUl1LwzAU_SvhPk3ohq3t-vEgSDeGsBVh6oOrD7G964pNUrIEp-v-u0nn_JiXEM6995xzySV7KESJkMC6EW_FhkpF7ic5JyYetijJcHjdPdZbTRtyJ0UlKWM1rzqSZstBKniBrbK9TDOUdWHQstggw4szi9QM-Wdwxsmo0tI4zCmvNK2wIze37mA-X3yZmczyfpQG9MJ7ZG1DFZIZcpRU1YJ3ZDbNVkuhZYHEDn_-KzGu5-wjwYDjEMHalb3qpqec9KbS96c7LLSiLw2CA5WsS0iU1OiA2QOjNoW9leSg7D5ySAwsqXzNIecHo2kpfxKCnWRS6GoDyZo2W5PptjTvmdTU7uu7KpGXKFOhuYLkynN7E0j2sDOp74_8MDTHjcLIjyIH3iEJvFEw9vzQiz3PjYN4HBwc-OjHXo6i0I9_hwNY1krIxfFD9P_i8AnPEKlt)
 
 ## Implementation
 ### Template-based source code generation

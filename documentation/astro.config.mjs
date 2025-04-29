@@ -4,6 +4,7 @@ import starlight from '@astrojs/starlight';
 
 import markdoc from '@astrojs/markdoc';
 import rehypeMermaid from '@beoe/rehype-mermaid';
+import catppucin from '@catppuccin/starlight';
 import { getCache } from '@beoe/cache';
 
 const cache = await getCache();
@@ -29,11 +30,21 @@ export default defineConfig({
     editLink: {
       baseUrl: 'https://github.com/ShaitanLyss/these/edit/main/documentation',
     },
-    title: 'Hecate',
+    title: 'Thèse',
+    favicon: '/crescent-moon.svg',
     customCss: [
       './src/styles/custom.css'
     ],
     social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ShaitanLyss/these' }],
+    plugins: [
+      catppucin({
+        dark: {},
+        light: {
+          // accent: "sky",
+          flavor: "latte"
+        }
+      })
+    ],
     sidebar: [
       {
         label: 'Overview',

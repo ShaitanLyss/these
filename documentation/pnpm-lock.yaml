@@ -23,6 +23,9 @@ importers:
       '@beoe/rehype-mermaid':
         specifier: ^0.4.2
         version: 0.4.2(playwright@1.52.0)
+      '@catppuccin/starlight':
+        specifier: ^1.0.1
+        version: 1.0.1(@astrojs/starlight@0.34.1(astro@5.7.9(rollup@4.40.1)(typescript@5.8.3)))(astro@5.7.9(rollup@4.40.1)(typescript@5.8.3))
       astro:
         specifier: ^5.7.9
         version: 5.7.9(rollup@4.40.1)(typescript@5.8.3)
@@ -146,6 +149,12 @@ packages:
 
   '@capsizecss/unpack@2.4.0':
     resolution: {integrity: sha512-GrSU71meACqcmIUxPYOJvGKF0yryjN/L1aCuE9DViCTJI7bfkjgYDPD1zbNDcINJwSSP6UaBZY9GAbYDO7re0Q==}
+
+  '@catppuccin/starlight@1.0.1':
+    resolution: {integrity: sha512-jBNMYSBkyFGrI0pJRDfOL26HyIuDIWrqfACxbvI4/xw0jLNColXjYw3i+HBeS2bC+UcJqJtRqsrcxqDb31TcBg==}
+    peerDependencies:
+      '@astrojs/starlight': '>=0.32'
+      astro: ^5.0.0
 
   '@chevrotain/cst-dts-gen@11.0.3':
     resolution: {integrity: sha512-BvIKpRLeS/8UbfxXxgC33xOumsacaeCKAjAeLyOn7Pcp95HiRbrpl14S+9vaZLolnbssPIUuiUd8IvgkRyt6NQ==}
@@ -2929,6 +2938,11 @@ snapshots:
       fontkit: 2.0.4
     transitivePeerDependencies:
       - encoding
+
+  '@catppuccin/starlight@1.0.1(@astrojs/starlight@0.34.1(astro@5.7.9(rollup@4.40.1)(typescript@5.8.3)))(astro@5.7.9(rollup@4.40.1)(typescript@5.8.3))':
+    dependencies:
+      '@astrojs/starlight': 0.34.1(astro@5.7.9(rollup@4.40.1)(typescript@5.8.3))
+      astro: 5.7.9(rollup@4.40.1)(typescript@5.8.3)
 
   '@chevrotain/cst-dts-gen@11.0.3':
     dependencies:
