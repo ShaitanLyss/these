@@ -1,0 +1,28 @@
+---
+interface Props {
+  code: string;
+}
+const { code } = Astro.props;
+---
+
+<script>
+  import mermaid from "mermaid";
+
+  mermaid.initialize({
+    startOnLoad: true,
+    darkMode: true,
+    theme: "dark",
+  });
+</script>
+
+<div class="mermaid">
+  {code}
+</div>
+
+<style>
+  .mermaid {
+    color: transparent;
+    display: flex;
+    /* justify-content: center; */
+  }
+</style>
