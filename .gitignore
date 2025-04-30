@@ -1,3 +1,14 @@
+# Python and jupyter
+.ipynb_checkpoints
+
+.vscode
+jupyter/**/*.parquet
+MonoCoderRepo
+
+
+
+
+
 # Build dirs
 build
 target
