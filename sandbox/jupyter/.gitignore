@@ -1,1 +1,5 @@
-MonoCoder
+MonoCoder*
+*.cpp
+*.md
+*.jsonl
+*.parquet
