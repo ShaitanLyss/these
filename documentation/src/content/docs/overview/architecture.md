@@ -24,6 +24,12 @@ flowchart LR
 3. Define element matrices (software)
 4. Assemble global matrix (software)
 5. Solve  (software)
+    - iterative solvers 
+        - conjuguate gradient method (only works for symetric and positive definites, which can be inferred from the equation)
+        - general
+            - BICGStab 
+            - GMRES
+    - direct solver
 6. Post-process results, Validate results
 
 

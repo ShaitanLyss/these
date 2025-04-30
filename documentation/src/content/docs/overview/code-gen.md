@@ -17,15 +17,21 @@ This approach allows for great flexibility, while retaining performance as the e
 It is yet undecided if the resulting executable will support changing the values of parameters, or if a new compilation will occur. The choice will depend on the potential performance gains procured by statically linking parameter values.
 
 ```mermaid
+---
+title: Simulation Code Generation 
+---
 flowchart TD
     User -->|Visual Programming| CNS(Conceptual Numerical Scheme)
     User -->|Code Programming| CNS
     User -->|Natural Language| AI1(LLM)
     AI1 --> CNS
+    CNS -->|Preprocessor Macros| GEN
     CNS -->|Template Generation| GEN[Source Code]
     CNS -->|LLM Generation| GEN
     GEN --> Comp[Compilation]
     Comp --> Executable
+%% Executable --> AI1
+%%   AI1 --> User
 ```
 
 <style>
@@ -36,8 +42,33 @@ svg[class*='flowchart'] {
 }
 </style>
 
-## Implementation
+## Conceptual Numerical Scheme generation
+### LLM
+For the LLM approach, an interesting possibility is repeated prompting with the
+results of previous compilations. In this way, the numerical scheme could automatically
+get refined for better convergence and accuracy (element types, solver, preconditioner...),
+thus replacing the need for traditional human experimentation. 
+
+However, the model could still ask (or be given) human feedback. It doesn't have to be a
+linear process, there is a lot of room for iterations and interactivity.
+A chatbot approach would be appropriate, with tool calling and chain of thoughts.
+
+```mermaid
+---
+title: Interactive Iterative Simulation Generation & Execution
+---
+flowchart TD
+user(User) -->|Express scientific/engineer problem| LLM(LLM)
+LLM --> SIM(Simulation execution)
+SIM --> LLM
+LLM -->|Presents results or ask for decisions| user
+```
+
+
+## Source code generation
 ### Template-based source code generation
 ### LLM-based source code generation
+### Preprocessor Macros
+Not investigated yet, probably not flexible enough for complex simulation.
 
 
