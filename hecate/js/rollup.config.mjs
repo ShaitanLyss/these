@@ -4,9 +4,9 @@ import svelte from 'rollup-plugin-svelte';
 import css from 'rollup-plugin-import-css';
 import json from '@rollup/plugin-json'
 import commonjs from '@rollup/plugin-commonjs';
-import {defineConfig} from 'rollup'
+import { defineConfig } from 'rollup'
 
-import {minify} from 'rollup-plugin-esbuild-minify'
+import { minify } from 'rollup-plugin-esbuild-minify'
 
 // rollup.config.mjs
 export default defineConfig({
@@ -15,13 +15,15 @@ export default defineConfig({
     file: 'build/bundle.js',
     format: 'es',
     inlineDynamicImports: true,
-    compact: true
+    compact: false
   },
-  
-  plugins: [
-    svelte({ emitCss: false, }), 
-    css(), json(), commonjs(), nodeResolve({
 
-    exportConditions: ['svelte'],
-  }), minify()]
+  plugins: [
+    svelte({ emitCss: false, }),
+    css({ transform: () => '' }), json(), commonjs(), nodeResolve({
+
+      exportConditions: ['svelte'],
+    }),
+    minify()
+  ]
 });

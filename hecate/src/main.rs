@@ -16,11 +16,15 @@ enum Commands {
     Test,
 }
 
-use rquickjs::{embed, loader::Bundle, CatchResultExt, Context, Module, Runtime};
+fn print(s: String) {
+    println!("{s}");
+}
+
+use rquickjs::{embed, loader::Bundle, CatchResultExt, Context, Function, Module, Runtime};
 
 /// load the `my_module.js` file and name it myModule
 static BUNDLE: Bundle = embed! {
-    "myModule": "my_module.js",
+    "bundle": "js/build/bundle.js",
 };
 
 fn test_js() {
@@ -29,20 +33,34 @@ fn test_js() {
 
     rt.set_loader(BUNDLE, BUNDLE);
     ctx.with(|ctx| {
+        let global = ctx.globals();
+        global.set(
+            "__print",
+            Function::new(ctx.clone(), print).unwrap().with_name("__print").unwrap(),
+        ).unwrap();
+        ctx.eval::<(), _>(
+            r#"
+globalThis.console = {
+  log(...v) {
+    globalThis.__print(`${v.join(" ")}`)
+  }
+}
+"#,
+        ).unwrap();
         Module::evaluate(
             ctx.clone(),
             "testModule",
             r#"
-            import { foo } from 'myModule';
-            if(foo() !== 2){
-                throw new Error("Function didn't return the correct value");
-            }
+            import { get_cpp_sources_from_graph } from 'bundle';
+            console.log(get_cpp_sources_from_graph());
         "#,
         )
         .unwrap()
         .finish::<()>()
         .catch(&ctx)
         .unwrap();
+        let res: i32 = ctx.eval("2 + 2").unwrap();
+        println!("2 + 2 = {}", res);
     })
 }
 
@@ -55,9 +73,6 @@ fn main() {
         },
         Commands::Test => {
             test_js();
-
-          
-
         }
     }
 }
