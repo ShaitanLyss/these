@@ -6,6 +6,10 @@ jupyter/**/*.parquet
 MonoCoderRepo
 
 
+# JS
+node_modules
+
+
 
 
 
