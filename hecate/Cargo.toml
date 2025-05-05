@@ -10,9 +10,12 @@ cmake = "0.1.54"
 [dependencies]
 clap = { version = "4.5.36", features = ["derive"] }
 derive-alias = "0.1.1"
-rquickjs = { version = "0.9.0", features = ["futures", "macro", "loader"] }
+rquickjs = {  git = "https://github.com/DelSkayn/rquickjs.git", version = "0.9.0", features = ["futures", "macro", "loader"] }
+llrt_modules = { path = "llrt/llrt_modules", default-features = false, features = ["crypto", "console", "timers"] }
+tokio = { version = "1", features = ["full"] }
 schemars = "0.8.22"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 tera = {version = "1.20.0", default-features = false}
 thiserror = "2.0.12"
+anyhow = "1.0.98"
