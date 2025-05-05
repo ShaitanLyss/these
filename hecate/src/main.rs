@@ -53,6 +53,7 @@ globalThis.console = {
             r#"
             import { get_cpp_sources_from_graph } from 'bundle';
             console.log(get_cpp_sources_from_graph());
+
         "#,
         )
         .unwrap()

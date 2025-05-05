@@ -15,7 +15,7 @@ export default defineConfig({
     file: 'build/bundle.js',
     format: 'es',
     inlineDynamicImports: true,
-    compact: false
+    compact: true
   },
 
   plugins: [
