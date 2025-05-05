@@ -17,11 +17,10 @@ export default defineConfig({
     inlineDynamicImports: true,
     compact: true
   },
-
   plugins: [
     svelte({ emitCss: false, }),
     css({ transform: () => '' }), json(), commonjs(), nodeResolve({
-
+      preferBuiltins: false,
       exportConditions: ['svelte'],
     }),
     minify()

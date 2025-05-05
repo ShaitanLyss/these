@@ -1,4 +1,3 @@
-
 import {setupGraphEditor} from '@selenite/graph-editor'
 export async function get_cpp_sources_from_graph() {
   const graph = await setupGraphEditor()

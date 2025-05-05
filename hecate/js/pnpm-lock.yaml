@@ -8,18 +8,12 @@ importers:
 
   .:
     dependencies:
-      '@babel/runtime':
-        specifier: ^7.27.1
-        version: 7.27.1
       '@rollup/plugin-commonjs':
         specifier: ^28.0.3
         version: 28.0.3(rollup@4.40.1)
-      '@selenite/commons':
-        specifier: ^1.0.7
-        version: 1.0.7(@fortawesome/free-regular-svg-icons@6.7.2)(@fortawesome/free-solid-svg-icons@6.7.2)(@skeletonlabs/floating-ui-svelte@0.3.9(svelte@5.28.2))(lodash-es@4.17.21)(svelte-fa@4.0.4(svelte@5.28.2))(svelte-floating-ui@1.6.2)(svelte@5.28.2)
       '@selenite/graph-editor':
-        specifier: ^1.0.2
-        version: 1.0.2(@fortawesome/free-regular-svg-icons@6.7.2)(@fortawesome/free-solid-svg-icons@6.7.2)(@selenite/commons@1.0.7(@fortawesome/free-regular-svg-icons@6.7.2)(@fortawesome/free-solid-svg-icons@6.7.2)(@skeletonlabs/floating-ui-svelte@0.3.9(svelte@5.28.2))(lodash-es@4.17.21)(svelte-fa@4.0.4(svelte@5.28.2))(svelte-floating-ui@1.6.2)(svelte@5.28.2))(elkjs@0.8.2)(react@19.1.0)(svelte@5.28.2)(tailwindcss@4.1.5)(web-worker@1.5.0)
+        specifier: ^1.0.4
+        version: 1.0.4(@fortawesome/free-regular-svg-icons@6.7.2)(@fortawesome/free-solid-svg-icons@6.7.2)(@selenite/commons@1.0.7(@fortawesome/free-regular-svg-icons@6.7.2)(@fortawesome/free-solid-svg-icons@6.7.2)(@skeletonlabs/floating-ui-svelte@0.3.9(svelte@5.28.2))(lodash-es@4.17.21)(svelte-fa@4.0.4(svelte@5.28.2))(svelte-floating-ui@1.6.2)(svelte@5.28.2))(elkjs@0.8.2)(react@19.1.0)(svelte@5.28.2)(tailwindcss@4.1.5)(web-worker@1.5.0)
       rollup-plugin-esbuild-minify:
         specifier: ^1.3.0
         version: 1.3.0(rollup@4.40.1)
@@ -277,11 +271,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@floating-ui/core@1.6.9':
-    resolution: {integrity: sha512-uMXCuQ3BItDUbAMhIXw7UPXRfAlOAvZzdK9BWpE60MCn+Svt3aLn9jsPTi/WNGlRUu2uI0v5S7JiIUsbsvh3fw==}
+  '@floating-ui/core@1.7.0':
+    resolution: {integrity: sha512-FRdBLykrPPA6P76GGGqlex/e7fbe0F1ykgxHYNXQsH/iTEtjMj/f9bpY5oQqbjt5VgZvgz/uKXbGuROijh3VLA==}
 
-  '@floating-ui/dom@1.6.13':
-    resolution: {integrity: sha512-umqzocjDgNRGTuO7Q8CU32dkHkECqI8ZdMZ5Swb6QAM0t5rnlrN3lGo1hdpscRd3WS8T6DKYK4ephgIH9iRh3w==}
+  '@floating-ui/dom@1.7.0':
+    resolution: {integrity: sha512-lGTor4VlXcesUMh1cupTUTDoCxMb0V6bm3CnxHzQcw8Eaf1jQbgQX4i02fYgT0vJ82tb5MZ4CZk1LRGkktJCzg==}
 
   '@floating-ui/utils@0.2.9':
     resolution: {integrity: sha512-MDWhGtE+eHw5JW7lq4qhc5yRLS11ERl1c7Z6Xd0a58DozHES6EnNNwUWbMiG4J9Cgj053Bhk8zvlhFYKVhULwg==}
@@ -577,8 +571,8 @@ packages:
       svelte-fa: ^4.0.2
       svelte-floating-ui: ^1.5.9
 
-  '@selenite/graph-editor@1.0.2':
-    resolution: {integrity: sha512-YzXjdrlzMTLzBO1FA0DU4ffwVqVLR1TR6G3fKuNpmJ/PHbouuwuYK1ocDYF/5lLqD74oIklf948HRkVcN8A8rw==}
+  '@selenite/graph-editor@1.0.4':
+    resolution: {integrity: sha512-w3yBylCRagdxA7U9+lLVYFC9adTTCvYgiUlKlaoUHg3Q7aF5S7DFbiBw6m7oQtv8vwNaG2RNl/p6BFR+6Np6Cw==}
     peerDependencies:
       '@fortawesome/free-regular-svg-icons': ^6.6.0
       '@fortawesome/free-solid-svg-icons': ^6.6.0
@@ -633,16 +627,16 @@ packages:
   broadcast-channel@7.1.0:
     resolution: {integrity: sha512-InJljddsYWbEL8LBnopnCg+qMQp9KcowvYWOt4YWrjD5HmxzDYKdVbDS1w/ji5rFZdRD58V5UxJPtBdpEbEJYw==}
 
-  browserslist@4.24.4:
-    resolution: {integrity: sha512-KDi1Ny1gSePi1vm0q4oxSF8b4DR44GF4BbmS2YdhPLOEqd8pDviZOGH/GsmRwoWJ2+5Lr085X7naowMwKHDG1A==}
+  browserslist@4.24.5:
+    resolution: {integrity: sha512-FDToo4Wo82hIdgc1CQ+NQD0hEhmpPjrZ3hiUgwgOG6IuTdlpr8jdjyG24P6cNP1yJpTLzS5OcGgSw0xmDU1/Tw==}
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
 
   buffer@6.0.3:
     resolution: {integrity: sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==}
 
-  caniuse-lite@1.0.30001716:
-    resolution: {integrity: sha512-49/c1+x3Kwz7ZIWt+4DvK3aMJy9oYXXG6/97JKsnjdCk/6n9vVyWL8NAwVt95Lwt9eigI10Hl782kDfZUUlRXw==}
+  caniuse-lite@1.0.30001717:
+    resolution: {integrity: sha512-auPpttCq6BDEG8ZAuHJIplGw6GODhjw+/11e7IjpnYCxZcW/ONgPs0KVBJ0d1bY3e2+7PRe5RCLyP+PfwVgkYw==}
 
   chokidar@4.0.3:
     resolution: {integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==}
@@ -722,8 +716,8 @@ packages:
   diff3@0.0.3:
     resolution: {integrity: sha512-iSq8ngPOt0K53A6eVr4d5Kn6GNrM2nQZtC740pzIriHtn4pOQ2lyzEXQMBeVcWERN0ye7fhBsk9PbLLQOnUx/g==}
 
-  electron-to-chromium@1.5.148:
-    resolution: {integrity: sha512-8uc1QXwwqayD4mblcsQYZqoi+cOc97A2XmKSBOIRbEAvbp6vrqmSYs4dHD2qVygUgn7Mi0qdKgPaJ9WC8cv63A==}
+  electron-to-chromium@1.5.149:
+    resolution: {integrity: sha512-UyiO82eb9dVOx8YO3ajDf9jz2kKyt98DEITRdeLPstOEuTlLzDA4Gyq5K9he71TQziU5jUVu2OAu5N48HmQiyQ==}
 
   elkjs@0.8.2:
     resolution: {integrity: sha512-L6uRgvZTH+4OF5NE/MBbzQx/WYpru1xCBE9respNj6qznEewGUIfhzmm7horWWxbNO2M0WckQypGctR8lH79xQ==}
@@ -1226,7 +1220,7 @@ snapshots:
     dependencies:
       '@babel/compat-data': 7.27.1
       '@babel/helper-validator-option': 7.27.1
-      browserslist: 4.24.4
+      browserslist: 4.24.5
       lru-cache: 5.1.1
       semver: 6.3.1
 
@@ -1369,13 +1363,13 @@ snapshots:
   '@esbuild/win32-x64@0.25.3':
     optional: true
 
-  '@floating-ui/core@1.6.9':
+  '@floating-ui/core@1.7.0':
     dependencies:
       '@floating-ui/utils': 0.2.9
 
-  '@floating-ui/dom@1.6.13':
+  '@floating-ui/dom@1.7.0':
     dependencies:
-      '@floating-ui/core': 1.6.9
+      '@floating-ui/core': 1.7.0
       '@floating-ui/utils': 0.2.9
 
   '@floating-ui/utils@0.2.9': {}
@@ -1613,7 +1607,7 @@ snapshots:
       svelte-portal: 2.2.1
       uuid: 11.1.0
 
-  '@selenite/graph-editor@1.0.2(@fortawesome/free-regular-svg-icons@6.7.2)(@fortawesome/free-solid-svg-icons@6.7.2)(@selenite/commons@1.0.7(@fortawesome/free-regular-svg-icons@6.7.2)(@fortawesome/free-solid-svg-icons@6.7.2)(@skeletonlabs/floating-ui-svelte@0.3.9(svelte@5.28.2))(lodash-es@4.17.21)(svelte-fa@4.0.4(svelte@5.28.2))(svelte-floating-ui@1.6.2)(svelte@5.28.2))(elkjs@0.8.2)(react@19.1.0)(svelte@5.28.2)(tailwindcss@4.1.5)(web-worker@1.5.0)':
+  '@selenite/graph-editor@1.0.4(@fortawesome/free-regular-svg-icons@6.7.2)(@fortawesome/free-solid-svg-icons@6.7.2)(@selenite/commons@1.0.7(@fortawesome/free-regular-svg-icons@6.7.2)(@fortawesome/free-solid-svg-icons@6.7.2)(@skeletonlabs/floating-ui-svelte@0.3.9(svelte@5.28.2))(lodash-es@4.17.21)(svelte-fa@4.0.4(svelte@5.28.2))(svelte-floating-ui@1.6.2)(svelte@5.28.2))(elkjs@0.8.2)(react@19.1.0)(svelte@5.28.2)(tailwindcss@4.1.5)(web-worker@1.5.0)':
     dependencies:
       '@fortawesome/free-regular-svg-icons': 6.7.2
       '@fortawesome/free-solid-svg-icons': 6.7.2
@@ -1658,7 +1652,7 @@ snapshots:
 
   '@skeletonlabs/floating-ui-svelte@0.3.9(svelte@5.28.2)':
     dependencies:
-      '@floating-ui/dom': 1.6.13
+      '@floating-ui/dom': 1.7.0
       '@floating-ui/utils': 0.2.9
       svelte: 5.28.2
 
@@ -1696,19 +1690,19 @@ snapshots:
       p-queue: 6.6.2
       unload: 2.4.1
 
-  browserslist@4.24.4:
+  browserslist@4.24.5:
     dependencies:
-      caniuse-lite: 1.0.30001716
-      electron-to-chromium: 1.5.148
+      caniuse-lite: 1.0.30001717
+      electron-to-chromium: 1.5.149
       node-releases: 2.0.19
-      update-browserslist-db: 1.1.3(browserslist@4.24.4)
+      update-browserslist-db: 1.1.3(browserslist@4.24.5)
 
   buffer@6.0.3:
     dependencies:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
-  caniuse-lite@1.0.30001716: {}
+  caniuse-lite@1.0.30001717: {}
 
   chokidar@4.0.3:
     dependencies:
@@ -1767,7 +1761,7 @@ snapshots:
 
   diff3@0.0.3: {}
 
-  electron-to-chromium@1.5.148: {}
+  electron-to-chromium@1.5.149: {}
 
   elkjs@0.8.2: {}
 
@@ -2167,7 +2161,7 @@ snapshots:
 
   svelte-floating-ui@1.6.2:
     dependencies:
-      '@floating-ui/dom': 1.6.13
+      '@floating-ui/dom': 1.7.0
 
   svelte-persisted-store@0.12.0(svelte@5.28.2):
     dependencies:
@@ -2208,9 +2202,9 @@ snapshots:
 
   unload@2.4.1: {}
 
-  update-browserslist-db@1.1.3(browserslist@4.24.4):
+  update-browserslist-db@1.1.3(browserslist@4.24.5):
     dependencies:
-      browserslist: 4.24.4
+      browserslist: 4.24.5
       escalade: 3.2.0
       picocolors: 1.1.1
 

@@ -20,9 +20,14 @@ fn print(s: String) {
     println!("{s}");
 }
 
+fn printstderr(s: String) {
+    eprintln!("{s}");
+}
+
 use rquickjs::{embed, loader::Bundle, CatchResultExt, Context, Function, Module, Runtime};
 
 /// load the `my_module.js` file and name it myModule
+#[rust_analyzer::skip]
 static BUNDLE: Bundle = embed! {
     "bundle": "js/build/bundle.js",
 };
@@ -38,10 +43,29 @@ fn test_js() {
             "__print",
             Function::new(ctx.clone(), print).unwrap().with_name("__print").unwrap(),
         ).unwrap();
+        global.set(
+            "__printerr",
+            Function::new(ctx.clone(), printstderr)
+                .unwrap()
+                .with_name("__printerr")
+                .unwrap(),
+        ).unwrap();
         ctx.eval::<(), _>(
             r#"
 globalThis.console = {
   log(...v) {
+    globalThis.__print(`${v.join(" ")}`)
+  },
+  error(...v) {
+    globalThis.__printerr(`${v.join(" ")}`)
+  },
+    warn(...v) {
+    globalThis.__print(`${v.join(" ")}`)
+  },
+  info(...v) {
+    globalThis.__print(`${v.join(" ")}`)
+  },
+  debug(...v) {
     globalThis.__print(`${v.join(" ")}`)
   }
 }

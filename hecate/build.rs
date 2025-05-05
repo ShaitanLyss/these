@@ -1,4 +1,5 @@
 use std::{env, path::PathBuf};
+use std::process::Command;
 
 use bindgen;
 use cmake;
@@ -28,4 +29,26 @@ fn main() {
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
+
+
+    // Build js package with pnpm from js folder
+    // Ensure pnpm is installed
+    Command::new("pnpm")
+        .arg("--version")
+        .status()
+        .expect("Failed to find pnpm. It is required to build js sources.");
+
+    std::env::set_current_dir("js").expect("Failed to set current dir to js.");
+    // Dependencies
+    Command::new("pnpm")
+        .arg("install")
+        .status()
+        .expect("Failed to install dependencies.");
+    // Build
+    Command::new("pnpm")
+        .arg("build")
+        .status()
+        .expect("Failed to build js package.");
+
+
 }
