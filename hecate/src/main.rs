@@ -89,17 +89,17 @@ static BUNDLE: Bundle = embed! {
 // }
 
 async fn test_js() -> Result<()> {
-    let rt = AsyncRuntime::new().unwrap();
-    let ctx = AsyncContext::full(&rt).await.unwrap();
+    let runtime = AsyncRuntime::new().unwrap();
+    let context = AsyncContext::full(&runtime).await.unwrap();
 
     let module_builder = ModuleBuilder::default();
     let (module_resolver, module_loader, global_attachment) = module_builder.build();
     // let module_resolver = module_resolver.add_name("bundle");
     // let global_attachment = global_attachment.add_name("bundle");
     // module_loader.add_module("bundle", BUNDLE);
-    rt.set_loader((BUNDLE, module_resolver,), (BUNDLE, module_loader,)).await;
+    runtime.set_loader((BUNDLE, module_resolver,), (BUNDLE, module_loader,)).await;
 
-    async_with!(ctx => |ctx| {
+    async_with!(context => |ctx| {
         global_attachment.attach(&ctx)?;
         ctx.eval::<(),_>("delete crypto['randomBytes']").map_err(|err| {
             dbg!(ctx.catch());
@@ -169,7 +169,7 @@ async fn test_js() -> Result<()> {
     })
     .await?;
 
-    rt.idle().await;
+    runtime.idle().await;
 
 
     Ok(())
