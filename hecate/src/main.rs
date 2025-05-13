@@ -1,4 +1,5 @@
-use std::error::Error;
+
+use std::any::Any;
 
 use anyhow::Result;
 use hecate::{self};
@@ -17,7 +18,7 @@ struct Args {
 enum Commands {
     Cpp,
     Test,
-    Python
+    Matrixify
 }
 
 fn print(s: String) {
@@ -29,7 +30,6 @@ fn printstderr(s: String) {
 }
 
 use llrt_modules::module_builder::ModuleBuilder;
-use pyembed::{MainPythonInterpreter, OxidizedPythonInterpreterConfig, PackedResourcesSource};
 use rquickjs::{
     async_with, embed, loader::Bundle, AsyncContext, AsyncRuntime
 };
@@ -180,26 +180,33 @@ async fn test_js() -> Result<()> {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    let mut config = OxidizedPythonInterpreterConfig::default();
-    config.packed_resources = vec!(PackedResourcesSource::MemoryMappedPath("py/main.py".into()));
-    config.interpreter_config.parse_argv = Some(false);
-    config.set_missing_path_configuration = false;
-    config.argv = Some(vec!["python".into()]);
-    config.interpreter_config.executable = Some("python".into());
 
     match &args.command {
         Commands::Cpp=>unsafe{println!("{}",hecate::add(-12,24));},
         Commands::Test=>{test_js().await?;}
-        Commands::Python => {
-            let interpreter = MainPythonInterpreter::new(config)?;
-        
+        Commands::Matrixify => {
+            use hecate::symbolic::*;
+            let x = &Symbol::new("x");
+            let y = &Symbol::new("y");
+            let z = &Symbol::new("z");
+            let u = &Symbol::new("u");
+            let t = &Symbol::new("t");
+            let f = &Symbol::new("f");
+            let nabla = &Symbol::new("nabla");
+            let c = &Symbol::new("c");
+            let laplacian = &Symbol::new("laplacian");
+            let addition = Mul::new(vec![&Integer::new(2), &Add::new(vec![&x, &x, &y, &z])]);
             
-            interpreter.with_gil(|py| -> Result<()> {
-                py.run("print('Hello world')", None, None)?;
-                Ok(())
-            })?;
+            println!("{}",addition);
+            println!("{:?}", addition);
+            println!("{}", Integral::new(f));
+            println!("x == x : {}", Symbol::new("x") == Symbol::new("x"));
+        
+
+            let eq = Eq::new(&(Diff::new(u, vec!(t, t)) - c.ipow(2) * laplacian * u), f);
+            println!("\nWave Equation:\n{}",eq.str());
+
         },
     }
-    println!("Finished!");
     Ok(())
 }
