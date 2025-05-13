@@ -17,6 +17,7 @@ struct Args {
 enum Commands {
     Cpp,
     Test,
+    Python
 }
 
 fn print(s: String) {
@@ -28,6 +29,7 @@ fn printstderr(s: String) {
 }
 
 use llrt_modules::module_builder::ModuleBuilder;
+use pyembed::{MainPythonInterpreter, OxidizedPythonInterpreterConfig, PackedResourcesSource};
 use rquickjs::{
     async_with, embed, loader::Bundle, AsyncContext, AsyncRuntime
 };
@@ -178,15 +180,25 @@ async fn test_js() -> Result<()> {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args = Args::parse();
+    let mut config = OxidizedPythonInterpreterConfig::default();
+    config.packed_resources = vec!(PackedResourcesSource::MemoryMappedPath("py/main.py".into()));
+    config.interpreter_config.parse_argv = Some(false);
+    config.set_missing_path_configuration = false;
+    config.argv = Some(vec!["python".into()]);
+    config.interpreter_config.executable = Some("python".into());
 
     match &args.command {
-        Commands::Cpp => unsafe {
-            println!("{}", hecate::add(-12, 24));
+        Commands::Cpp=>unsafe{println!("{}",hecate::add(-12,24));},
+        Commands::Test=>{test_js().await?;}
+        Commands::Python => {
+            let interpreter = MainPythonInterpreter::new(config)?;
+        
+            
+            interpreter.with_gil(|py| -> Result<()> {
+                py.run("print('Hello world')", None, None)?;
+                Ok(())
+            })?;
         },
-        Commands::Test => {
-            test_js().await?;
-            // get_config().await?
-        }
     }
     println!("Finished!");
     Ok(())
