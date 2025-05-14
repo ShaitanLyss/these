@@ -1,7 +1,7 @@
 use std::any::Any;
 
-pub mod expr;
 pub mod abc;
+pub mod expr;
 
 use expr::Expr;
 
@@ -21,6 +21,10 @@ impl Add {
 impl Expr for Add {
     fn args(&self) -> Vec<Box<dyn Expr>> {
         self.operands.clone()
+    }
+
+    fn from_args(&self, args: Vec<Box<dyn Expr>>) -> Box<dyn Expr> {
+        Box::new(Add { operands: args })
     }
 
     fn clone_box(&self) -> Box<dyn Expr> {
@@ -116,7 +120,6 @@ impl Expr for Symbol {
     }
 }
 
-
 pub enum KnownExpr<'a> {
     Add(&'a Add),
     Mul(&'a Mul),
@@ -211,7 +214,6 @@ impl Integer {
     }
 }
 
-
 #[derive(Clone)]
 pub struct Eq {
     lhs: Box<dyn Expr>,
@@ -227,7 +229,6 @@ impl Eq {
     }
 }
 
-
 impl Expr for Eq {
     fn args(&self) -> Vec<Box<dyn Expr>> {
         vec![self.lhs.clone(), self.rhs.clone()]
@@ -242,17 +243,14 @@ impl Expr for Eq {
     }
 }
 
-
 #[derive(Clone)]
 pub struct Integral {
-    f: Box<dyn Expr>
+    f: Box<dyn Expr>,
 }
 
 impl Integral {
     pub fn new(f: &Box<dyn Expr>) -> Box<dyn Expr> {
-        Box::new(Integral {
-            f: f.clone()
-        })
+        Box::new(Integral { f: f.clone() })
     }
 }
 
@@ -270,18 +268,20 @@ impl Expr for Integral {
     }
 }
 
-
 #[derive(Clone)]
 pub struct Diff {
     f: Box<dyn Expr>,
-    vars: Vec<Box<dyn Expr>>
+    vars: Vec<Box<dyn Expr>>,
 }
 
 impl Diff {
-    pub fn new<'a, It: IntoIterator<Item = &'a Box<dyn Expr>>>(f: &Box<dyn Expr>, vars: It) -> Box<dyn Expr> {
+    pub fn new<'a, It: IntoIterator<Item = &'a Box<dyn Expr>>>(
+        f: &Box<dyn Expr>,
+        vars: It,
+    ) -> Box<dyn Expr> {
         Box::new(Diff {
             f: f.clone(),
-            vars: vars.into_iter().cloned().collect()
+            vars: vars.into_iter().cloned().collect(),
         })
     }
 }
@@ -298,8 +298,16 @@ impl Expr for Diff {
     }
 
     fn str(&self) -> String {
-        let exponent = if self.vars.len() > 1 { format!("^{}", self.vars.len()) } else { "".to_string() };
-        format!("∂{}{} / ∂{}", exponent, self.f.str(), self.vars.iter().map(|x| x.str()).collect::<String>())
+        let exponent = if self.vars.len() > 1 {
+            format!("^{}", self.vars.len())
+        } else {
+            "".to_string()
+        };
+        format!(
+            "∂{}{} / ∂{}",
+            exponent,
+            self.f.str(),
+            self.vars.iter().map(|x| x.str()).collect::<String>()
+        )
     }
 }
-

@@ -192,7 +192,7 @@ async fn main() -> Result<()> {
             let u = &Symbol::new("u");
             let t = &Symbol::new("t");
             let f = &Symbol::new("f");
-            let nabla = &Symbol::new("nabla");
+            // let nabla = &Symbol::new("nabla");
             let c = &Symbol::new("c");
             let laplacian = &Symbol::new("laplacian");
             let addition = Mul::new(vec![&Integer::new(2), &Add::new(vec![&x, &x, &y, &z])]);

@@ -5,6 +5,12 @@ use std::any::Any;
 pub trait Expr: Any + Sync + Send {
     fn args(&self) -> Vec<Box<dyn Expr>>;
 
+    fn from_args(&self, args: Vec<Box<dyn Expr>>) -> Box<dyn Expr> {
+        if self.args().len() == args.len() {
+            return self.clone_box();
+        }
+        panic!("from_args not implemented for {}", self.name())
+    }
     fn clone_box(&self) -> Box<dyn Expr>;
 
     fn str(&self) -> String;
@@ -37,7 +43,6 @@ pub trait Expr: Any + Sync + Send {
     }
 }
 
-
 impl std::cmp::PartialEq for Box<dyn Expr> {
     fn eq(&self, other: &Self) -> bool {
         self.srepr() == other.srepr()
@@ -45,7 +50,6 @@ impl std::cmp::PartialEq for Box<dyn Expr> {
 }
 
 impl std::cmp::Eq for Box<dyn Expr> {}
-
 
 impl std::fmt::Debug for Box<dyn Expr> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
