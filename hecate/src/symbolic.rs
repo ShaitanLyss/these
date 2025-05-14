@@ -1,9 +1,13 @@
-use std::any::Any;
+use std::{
+    any::{Any, type_name_of_val},
+    fmt,
+};
 
 pub mod abc;
 pub mod expr;
-
-use expr::Expr;
+pub mod system;
+pub use expr::*;
+pub use system::System;
 
 #[derive(Clone)]
 pub struct Add {
@@ -19,11 +23,12 @@ impl Add {
 }
 
 impl Expr for Add {
-    fn args(&self) -> Vec<Box<dyn Expr>> {
-        self.operands.clone()
+    fn args(&self) -> Vec<Box<dyn Arg>> {
+        self.operands.iter().cloned().collect()
     }
 
-    fn from_args(&self, args: Vec<Box<dyn Expr>>) -> Box<dyn Expr> {
+    fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
+        let args: Vec<Box<dyn Expr>> = args.iter().cloned().collect();
         Box::new(Add { operands: args })
     }
 
@@ -37,7 +42,7 @@ impl Expr for Add {
             .iter()
             .enumerate()
             .map(|(i, op)| match KnownExpr::from_expr(op) {
-                KnownExpr::Mul(Mul { operands }) if operands.len() > 0 => {
+                KnownExpr::Mul(Mul { operands }) if operands.len() > 0 && i > 0 => {
                     match KnownExpr::from_expr(&operands[0]) {
                         KnownExpr::Integer(Integer { value: -1 }) => {
                             let mul = op.str();
@@ -55,36 +60,8 @@ impl Expr for Add {
     }
 }
 
-#[derive(Clone)]
-pub struct Pow {
-    base: Box<dyn Expr>,
-    exponent: Box<dyn Expr>,
-}
 
-impl Expr for Pow {
-    fn args(&self) -> Vec<Box<dyn Expr>> {
-        vec![self.base.clone(), self.exponent.clone()]
-    }
-
-    fn clone_box(&self) -> Box<dyn Expr> {
-        Box::new(self.clone())
-    }
-
-    fn str(&self) -> String {
-        format!("{}^{}", self.base.str(), self.exponent.str())
-    }
-}
-
-impl Pow {
-    pub fn new(base: &Box<dyn Expr>, exponent: &Box<dyn Expr>) -> Box<dyn Expr> {
-        Box::new(Pow {
-            base: base.clone(),
-            exponent: exponent.clone(),
-        })
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Symbol {
     name: String,
 }
@@ -103,8 +80,15 @@ impl Symbol {
 }
 
 impl Expr for Symbol {
-    fn args(&self) -> Vec<Box<dyn Expr>> {
-        vec![]
+    fn args(&self) -> Vec<Box<dyn Arg>> {
+        vec![Box::new(self.name.clone())]
+    }
+
+    fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
+        let name = (&*args[0]) as &dyn Any;
+
+        let name = name.downcast_ref::<String>().unwrap();
+        Box::new(Symbol { name: name.clone() })
     }
 
     fn clone_box(&self) -> Box<dyn Expr> {
@@ -114,10 +98,6 @@ impl Expr for Symbol {
     fn str(&self) -> String {
         self.name.clone()
     }
-
-    fn srepr(&self) -> String {
-        format!("Symbol({})", self.name)
-    }
 }
 
 pub enum KnownExpr<'a> {
@@ -125,7 +105,9 @@ pub enum KnownExpr<'a> {
     Mul(&'a Mul),
     Pow(&'a Pow),
     Integer(&'a Integer),
-    Symbol,
+    Symbol(&'a Symbol),
+    Integral(&'a Integral),
+    Eq(&'a Eq),
     Unknown,
 }
 
@@ -141,7 +123,11 @@ impl<'a> KnownExpr<'a> {
         } else if expr.is::<Integer>() {
             KnownExpr::Integer(expr.downcast_ref::<Integer>().unwrap())
         } else if expr.is::<Symbol>() {
-            KnownExpr::Symbol
+            KnownExpr::Symbol(expr.downcast_ref::<Symbol>().unwrap())
+        } else if let Some(integral) = expr.downcast_ref::<Integral>() {
+            KnownExpr::Integral(integral)
+        } else if let Some(eq) = expr.downcast_ref::<Eq>() {
+            KnownExpr::Eq(eq)
         } else {
             KnownExpr::Unknown
         }
@@ -154,8 +140,13 @@ pub struct Mul {
 }
 
 impl Expr for Mul {
-    fn args(&self) -> Vec<Box<dyn Expr>> {
-        self.operands.clone()
+    fn args(&self) -> Vec<Box<dyn Arg>> {
+        self.operands.iter().cloned().collect()
+    }
+
+    fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
+        let args: Vec<Box<dyn Expr>> = args.iter().cloned().collect();
+        Box::new(Mul { operands: args })
     }
 
     fn clone_box(&self) -> Box<dyn Expr> {
@@ -191,8 +182,18 @@ pub struct Integer {
 }
 
 impl Expr for Integer {
-    fn args(&self) -> Vec<Box<dyn Expr>> {
-        vec![]
+    fn args(&self) -> Vec<Box<dyn Arg>> {
+        vec![Box::new(self.value.clone())]
+    }
+
+    fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
+        let val = (&*args[0]) as &dyn Any;
+        Box::new(Integer {
+            value: val
+                .downcast_ref::<isize>()
+                .expect(&format!("{}", &type_name_of_val(args[0].as_any())))
+                .clone(),
+        })
     }
 
     fn clone_box(&self) -> Box<dyn Expr> {
@@ -202,10 +203,6 @@ impl Expr for Integer {
     fn str(&self) -> String {
         self.value.to_string()
     }
-
-    fn srepr(&self) -> String {
-        format!("Integer({})", self.value)
-    }
 }
 
 impl Integer {
@@ -214,34 +211,6 @@ impl Integer {
     }
 }
 
-#[derive(Clone)]
-pub struct Eq {
-    lhs: Box<dyn Expr>,
-    rhs: Box<dyn Expr>,
-}
-
-impl Eq {
-    pub fn new(lhs: &Box<dyn Expr>, rhs: &Box<dyn Expr>) -> Box<dyn Expr> {
-        Box::new(Eq {
-            lhs: lhs.clone(),
-            rhs: rhs.clone(),
-        })
-    }
-}
-
-impl Expr for Eq {
-    fn args(&self) -> Vec<Box<dyn Expr>> {
-        vec![self.lhs.clone(), self.rhs.clone()]
-    }
-
-    fn clone_box(&self) -> Box<dyn Expr> {
-        Box::new(self.clone())
-    }
-
-    fn str(&self) -> String {
-        format!("{} = {}", self.lhs.str(), self.rhs.str())
-    }
-}
 
 #[derive(Clone)]
 pub struct Integral {
@@ -255,8 +224,8 @@ impl Integral {
 }
 
 impl Expr for Integral {
-    fn args(&self) -> Vec<Box<dyn Expr>> {
-        vec![self.f.clone()]
+    fn args(&self) -> Vec<Box<dyn Arg>> {
+        vec![self.f.clone().into()]
     }
 
     fn clone_box(&self) -> Box<dyn Expr> {
@@ -271,7 +240,7 @@ impl Expr for Integral {
 #[derive(Clone)]
 pub struct Diff {
     f: Box<dyn Expr>,
-    vars: Vec<Box<dyn Expr>>,
+    vars: Vec<Symbol>,
 }
 
 impl Diff {
@@ -281,16 +250,33 @@ impl Diff {
     ) -> Box<dyn Expr> {
         Box::new(Diff {
             f: f.clone(),
-            vars: vars.into_iter().cloned().collect(),
+            vars: vars
+                .into_iter()
+                .map(|v| v.as_expr().unwrap().as_symbol().unwrap())
+                .collect(),
         })
     }
 }
 
 impl Expr for Diff {
-    fn args(&self) -> Vec<Box<dyn Expr>> {
-        let mut res = vec![self.f.clone()];
-        res.extend(self.vars.iter().cloned());
-        res
+    fn args(&self) -> Vec<Box<dyn Arg>> {
+        vec![
+            self.f.clone().into(),
+            Box::new(self.vars.iter().map(|v| v.clone_box()).collect::<Vec<_>>()),
+        ]
+    }
+
+    fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
+        let vars = (&*args[1]) as &dyn Any;
+        let vars = vars.downcast_ref::<Vec<Box<dyn Expr>>>().unwrap();
+        let vars = vars
+            .iter()
+            .map(|v| v.as_symbol().expect("Not a symbol"))
+            .collect();
+        Box::new(Diff {
+            f: args[0].clone().into(),
+            vars,
+        })
     }
 
     fn clone_box(&self) -> Box<dyn Expr> {
@@ -309,5 +295,82 @@ impl Expr for Diff {
             self.f.str(),
             self.vars.iter().map(|x| x.str()).collect::<String>()
         )
+    }
+}
+
+#[derive(Clone)]
+pub struct Func {
+    name: String,
+    args: Vec<Symbol>,
+}
+
+impl Func {
+    pub fn new<'a, T: IntoIterator<Item = &'a str>>(name: &str, args: T) -> Self {
+        Func {
+            name: name.to_string(),
+            args: args
+                .into_iter()
+                .map(|s| Symbol {
+                    name: s.to_string(),
+                })
+                .collect(),
+        }
+    }
+
+    pub fn time_discretize(&self) -> [Func; 2] {
+        return [
+            Func {
+                name: format!("{}^n-1", self.name),
+                args: self.args.clone(),
+            },
+            Func {
+                name: format!("{}^n", self.name),
+                args: self.args.clone(),
+            },
+        ];
+    }
+}
+
+impl Expr for Func {
+    fn args(&self) -> Vec<Box<dyn Arg>> {
+        vec![
+            Box::new(self.name.clone()),
+            Box::new(self.args.iter().map(|v| v.clone_box()).collect::<Vec<_>>()),
+        ]
+    }
+
+    fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
+        let name = args[0]
+            .as_any()
+            .downcast_ref::<String>()
+            .expect("First arg should be string")
+            .clone();
+        let params = args[1]
+            .as_any()
+            .downcast_ref::<Vec<Box<dyn Expr>>>()
+            .unwrap();
+        let params: Vec<_> = params
+            .iter()
+            .map(|v| v.as_symbol().expect("Not a symbol"))
+            .collect();
+        Box::new(Func { name, args: params })
+    }
+
+    fn clone_box(&self) -> Box<dyn Expr> {
+        Box::new(self.clone())
+    }
+
+    fn str(&self) -> String {
+        format!(
+            "{}",
+            self.name,
+            // self.args.iter().map(|x| x.str()).collect::<String>()
+        )
+    }
+}
+
+impl fmt::Debug for Func {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.str())
     }
 }

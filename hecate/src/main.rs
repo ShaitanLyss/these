@@ -1,5 +1,8 @@
+use llrt_modules::module_builder::ModuleBuilder;
+use rquickjs::{
+    async_with, embed, loader::Bundle, AsyncContext, AsyncRuntime
+};
 
-use std::any::Any;
 
 use anyhow::Result;
 use hecate::{self};
@@ -21,18 +24,14 @@ enum Commands {
     Matrixify
 }
 
-fn print(s: String) {
-    println!("{s}");
-}
+// fn print(s: String) {
+//     println!("{s}");
+// }
+//
+// fn printstderr(s: String) {
+//     eprintln!("{s}");
+// }
 
-fn printstderr(s: String) {
-    eprintln!("{s}");
-}
-
-use llrt_modules::module_builder::ModuleBuilder;
-use rquickjs::{
-    async_with, embed, loader::Bundle, AsyncContext, AsyncRuntime
-};
 
 /// load the `my_module.js` file and name it myModule
 #[rust_analyzer::skip]
@@ -152,11 +151,11 @@ async fn test_js() -> Result<()> {
 
         ctx.eval_promise("const {get_cpp_sources_from_graph} = await import('bundle')")?.into_future::<()>().await?;
         match ctx.eval_promise("const res = await get_cpp_sources_from_graph()")?.into_future::<()>().await {
-            Ok(res) => {
+            Ok(_res) => {
                 // dbg!(res);
 
             },
-            Err(err) => {
+            Err(_) => {
                 dbg!(ctx.catch());
                 
 
@@ -189,22 +188,37 @@ async fn main() -> Result<()> {
             let x = &Symbol::new("x");
             let y = &Symbol::new("y");
             let z = &Symbol::new("z");
-            let u = &Symbol::new("u");
+            let u = &Func::new("u", []).clone_box();
             let t = &Symbol::new("t");
-            let f = &Symbol::new("f");
+            let f = &Func::new("f", []).clone_box();
             // let nabla = &Symbol::new("nabla");
             let c = &Symbol::new("c");
             let laplacian = &Symbol::new("laplacian");
             let addition = Mul::new(vec![&Integer::new(2), &Add::new(vec![&x, &x, &y, &z])]);
+
             
-            println!("{}",addition);
             println!("{:?}", addition);
+            println!("{}",addition);
+            let test_subs = addition.subs(&vec![[x.clone_box(), y.clone_box()]]);
+            println!("Substitution: \n{}", test_subs);
+
             println!("{}", Integral::new(f));
             println!("x == x : {}", Symbol::new("x") == Symbol::new("x"));
         
 
-            let eq = Eq::new(&(Diff::new(u, vec!(t, t)) - c.ipow(2) * laplacian * u), f);
-            println!("\nWave Equation:\n{}",eq.str());
+            let eq = &Eq::into_new(&(Diff::new(u, vec!(t, t)) - c.ipow(2) * laplacian * u), f);
+            println!("\nWave Equation:\n{}",eq as &dyn Expr);
+
+            let system = System::new(["u"], ["f"], [eq]);
+            print!("\n{:#?}\n", system);
+
+            let system = system.to_first_order_in_time();
+            println!("\n{:#?}", system);
+
+            let system = system.time_discretized();
+            println!("\n{:#?}", system);
+
+
 
         },
     }
