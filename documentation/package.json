@@ -12,13 +12,13 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/markdoc": "^0.14.1",
-    "@astrojs/starlight": "^0.34.1",
+    "@astrojs/markdoc": "^0.14.2",
+    "@astrojs/starlight": "^0.34.3",
     "@astrojs/starlight-markdoc": "^0.4.0",
     "@beoe/cache": "^0.1.1",
     "@beoe/rehype-mermaid": "^0.4.2",
     "@catppuccin/starlight": "^1.0.1",
-    "astro": "^5.7.9",
+    "astro": "^5.7.13",
     "playwright": "^1.52.0",
     "rehype-katex": "^7.0.1",
     "rehype-mathjax": "^7.1.0",

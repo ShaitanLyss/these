@@ -14,7 +14,6 @@ bondaryV[Boundary Values for V]
 
 ```
 
-i need to be able to convert equations to compute code
 
 ```yaml
 meshes:
@@ -24,10 +23,15 @@ meshes:
         subdivisions: 5
 
 equations:
-    equation: d²u / dt² - Laplacien(u) = f
+    wave: diff(u, t, 2) - c**2 * Laplacian(u) = f
+
+time: 0 .. 5
 
 finite_elements:
     fe: Q_1
+
+parameters:
+    c: 1
 
 functions:
     f: 
