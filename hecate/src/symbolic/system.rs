@@ -40,7 +40,7 @@ impl System {
             })
             .collect();
 
-        equations.push(Eq::new(&v, &*u.diff("t", 1)));
+        equations.insert(0, Eq::new(&v, &*u.diff("t", 1)));
         unknowns.push(v);
 
         System {
