@@ -9,11 +9,10 @@ pub struct Pow {
 }
 
 impl Expr for Pow {
-    fn args(&self) -> Vec<Box<dyn Arg>> {
-        vec![self.base.clone(), self.exponent.clone()]
-            .iter()
-            .cloned()
-            .collect()
+    fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ()) {
+        f(&*self.base);
+        f(&*self.exponent)
+        
     }
 
     fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
@@ -28,7 +27,7 @@ impl Expr for Pow {
     }
 
     fn str(&self) -> String {
-        match KnownExpr::from_expr(&self.exponent) {
+        match KnownExpr::from_expr_box(&self.exponent) {
             KnownExpr::Integer(Integer { value: -1 }) => format!(" / {}", self.base.str()),
 
             _ => format!("{}^{}", self.base.str(), self.exponent.str()),

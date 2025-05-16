@@ -7,6 +7,20 @@ pub struct System {
     pub equations: Vec<Eq>,
 }
 
+impl std::fmt::Display for System {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "System\n{}",
+            self.equations
+                .iter()
+                .map(|e| format!("> {}",  e.str()))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    }
+}
+
 impl System {
     pub fn new<
         'a,
@@ -76,11 +90,14 @@ impl System {
             let curr = &curr.clone_box();
             let prev = &prev.clone_box();
 
-            let k = &Symbol::new("k").clone_box();
-            let theta = &Symbol::new("θ").clone_box();
+            let k = &Symbol::new_box("k").clone_box();
+            let theta = &Symbol::new_box("θ").clone_box();
 
             substitutions.push([f.diff("t", 1).clone_box(), (curr - prev) / k]);
-            substitutions.push([f.clone_box(), theta * curr + (Integer::new(1) - theta) * prev ])
+            substitutions.push([
+                f.clone_box(),
+                theta * curr + (Integer::new_box(1) - theta) * prev,
+            ])
         }
 
         let equations: Vec<_> = self
@@ -92,6 +109,27 @@ impl System {
         System {
             unknowns,
             knowns,
+            equations,
+        }
+    }
+
+    pub fn simplified(&self) -> Self {
+        self.with_equations(
+            self.equations
+                .iter()
+                .map(|e| {
+                    e.expand()
+                        .as_eq()
+                        .expect("Equations should remain equations")
+                })
+                .collect(),
+        )
+    }
+
+    pub fn with_equations(&self, equations: Vec<Eq>) -> Self {
+        System {
+            unknowns: self.unknowns.clone(),
+            knowns: self.knowns.clone(),
             equations,
         }
     }

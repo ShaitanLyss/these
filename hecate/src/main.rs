@@ -185,16 +185,16 @@ async fn main() -> Result<()> {
         Commands::Test=>{test_js().await?;}
         Commands::Matrixify => {
             use hecate::symbolic::*;
-            let x = &Symbol::new("x");
-            let y = &Symbol::new("y");
-            let z = &Symbol::new("z");
+            let x = &Symbol::new_box("x");
+            let y = &Symbol::new_box("y");
+            let z = &Symbol::new_box("z");
             let u = &Func::new("u", []).clone_box();
-            let t = &Symbol::new("t");
+            let t = &Symbol::new_box("t");
             let f = &Func::new("f", []).clone_box();
             // let nabla = &Symbol::new("nabla");
-            let c = &Symbol::new("c");
-            let laplacian = &Symbol::new("laplacian");
-            let addition = Mul::new(vec![&Integer::new(2), &Add::new(vec![&x, &x, &y, &z])]);
+            let c = &Symbol::new_box("c");
+            let laplacian = &Symbol::new_box("laplacian");
+            let addition = Mul::new_box(vec![&Integer::new_box(2), &Add::new_box(vec![&x, &x, &y, &z])]);
 
             
             println!("{:?}", addition);
@@ -203,20 +203,23 @@ async fn main() -> Result<()> {
             println!("Substitution: \n{}", test_subs);
 
             println!("{}", Integral::new(f));
-            println!("x == x : {}", Symbol::new("x") == Symbol::new("x"));
+            println!("x == x : {}", Symbol::new_box("x") == Symbol::new_box("x"));
         
 
             let eq = &Eq::into_new(&(Diff::new(u, vec!(t, t)) - c.ipow(2) * laplacian * u), f);
             println!("\nWave Equation:\n{}",eq as &dyn Expr);
 
             let system = System::new(["u"], ["f"], [eq]);
-            print!("\n{:#?}\n", system);
+            print!("\n{:#}\n", system);
 
             let system = system.to_first_order_in_time();
-            println!("\n{:#?}", system);
+            println!("\n{:#}", system);
 
             let system = system.time_discretized();
-            println!("\n{:#?}", system);
+            println!("\n{:#}", system);
+
+            let system = system.simplified();
+            println!("\n{:#}", system);
 
 
 

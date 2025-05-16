@@ -1,7 +1,8 @@
 use std::fmt;
 
-use super::{Arg, Expr};
+use crate::symbolic::Symbol;
 
+use super::{Arg, Expr};
 
 #[derive(Clone)]
 pub struct Eq {
@@ -11,10 +12,11 @@ pub struct Eq {
 
 impl fmt::Debug for Eq {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // write!(f, "{}\n{}", self.str(), self.srepr())
-        write!(f, "{}", self.str())
+        write!(f, "{}\n{}", self.str(), self.srepr())
+        // write!(f, "{}", self.str())
     }
 }
+
 
 impl Eq {
     pub fn into_new(lhs: &Box<dyn Expr>, rhs: &Box<dyn Expr>) -> Eq {
@@ -33,8 +35,9 @@ impl Eq {
 }
 
 impl Expr for Eq {
-    fn args(&self) -> Vec<Box<dyn Arg>> {
-        vec![self.lhs.clone().into(), self.rhs.clone().into()]
+    fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ()) {
+        f(&*self.lhs);
+        f(&*self.rhs);
     }
 
     fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
@@ -50,5 +53,14 @@ impl Expr for Eq {
 
     fn str(&self) -> String {
         format!("{} = {}", self.lhs.str(), self.rhs.str())
+    }
+}
+
+impl Eq {
+    // - Expand all terms containing solved symbols
+    // - Move them to the left
+    // - Others to the right
+    pub fn solve<S: IntoIterator<Item = Symbol>>(symbols: S) -> Eq {
+        todo!()
     }
 }

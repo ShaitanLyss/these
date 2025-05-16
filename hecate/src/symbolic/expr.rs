@@ -6,10 +6,28 @@ pub use pow::*;
 pub mod eq;
 pub use eq::*;
 
+pub mod add;
+pub use add::*;
+
+pub mod mul;
+pub use mul::*;
+
+pub mod function;
+pub use function::*;
+
+pub mod diff;
+pub use diff::*;
+
+pub mod integral;
+pub use integral::*;
+
+pub mod symbol;
+pub use symbol::*;
+
 use std::{
     any::Any,
     cmp::PartialEq,
-    fmt::{self, Display},
+    fmt::{self},
 };
 
 pub trait Arg: Any {
@@ -21,6 +39,10 @@ pub trait Arg: Any {
         None
     }
 }
+
+pub trait ArgOperations {}
+
+impl<A: Arg> ArgOperations for A {}
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -174,8 +196,34 @@ impl FromIterator<Box<dyn Arg>> for Vec<Box<dyn Expr>> {
     }
 }
 
+// impl Clone for &(dyn Arg + 'static) {
+//     fn clone(&self) -> Self {
+//         todo!()
+//     }
+// }
+
 pub trait Expr: Arg + Sync + Send {
-    fn args(&self) -> Vec<Box<dyn Arg>>;
+    fn args(&self) -> Vec<Box<dyn Arg>> {
+        let mut res = Vec::new();
+        self.for_each_arg(&mut |a| res.push(a.clone_arg()));
+        res
+    }
+
+    fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ());
+
+    fn args_map_exprs(&self, f: &dyn Fn(&dyn Expr) -> Box<dyn Arg>) -> Vec<Box<dyn Arg>> {
+        let mut res = Vec::new();
+
+        self.for_each_arg(&mut |arg| {
+            if let Some(expr) = arg.as_expr() {
+                res.push(f(&*expr));
+            } else {
+                res.push(arg.clone_arg());
+            }
+        });
+
+        res
+    }
 
     fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
         panic!(
@@ -188,11 +236,14 @@ pub trait Expr: Arg + Sync + Send {
     fn as_arg(&self) -> Box<dyn Arg> {
         self.clone_box().into()
     }
+    fn equals(&self, other: &dyn Expr) -> bool {
+        self.srepr() == other.srepr()
+    }
     fn clone_box(&self) -> Box<dyn Expr>;
 
     fn as_symbol(&self) -> Option<Symbol> {
         let res = self.clone_box();
-        match KnownExpr::from_expr(&res) {
+        match KnownExpr::from_expr_box(&res) {
             KnownExpr::Symbol(symbol) => Some(symbol.clone()),
             _ => None,
         }
@@ -200,7 +251,7 @@ pub trait Expr: Arg + Sync + Send {
 
     fn as_eq(&self) -> Option<Eq> {
         let res = self.clone_box();
-        match KnownExpr::from_expr(&res) {
+        match KnownExpr::from_expr_box(&res) {
             KnownExpr::Eq(eq) => Some(eq.clone()),
             _ => None,
         }
@@ -213,7 +264,7 @@ pub trait Expr: Arg + Sync + Send {
     }
 
     fn ipow(&self, exponent: isize) -> Box<dyn Expr> {
-        Pow::new(&self.clone_box(), &Integer::new(exponent))
+        Pow::new(&self.clone_box(), &Integer::new_box(exponent))
     }
 
     fn diff(&self, var: &str, order: usize) -> Box<dyn Expr> {
@@ -257,24 +308,173 @@ pub trait Expr: Arg + Sync + Send {
                 .collect(),
         )
     }
-}
 
-pub trait E: Any + Display {
-    fn name(&self) -> String {
-        std::any::type_name_of_val(self)
-            .to_string()
-            .split("::")
-            .last()
-            .unwrap()
-            .to_string()
+    fn has(&self, expr: &dyn Expr) -> bool {
+        if self.equals(expr) {
+            true
+        } else {
+            self.args()
+                .iter()
+                .filter_map(|a| a.as_expr())
+                .any(|e| e.has(expr))
+        }
     }
-    fn args(&self) -> Vec<&dyn A>;
-    fn from_args(&self, args: &Vec<&dyn A>);
-    fn clone(&self) -> Box<dyn A>;
+
+    fn has_box(&self, expr: Box<dyn Expr>) -> bool {
+        self.has(&*expr)
+    }
+
+    /// Expands an expression.
+    /// For example:
+    /// (x + y) * z -> xz + yz
+    fn expand(&self) -> Box<dyn Expr> {
+        self.from_args(
+            self.args()
+                .iter()
+                .map(|a| {
+                    if let Some(expr) = a.as_expr() {
+                        expr.expand()
+                    } else {
+                        a.clone()
+                    }
+                })
+                .collect(),
+        )
+    }
+
+    fn is_one(&self) -> bool {
+        false
+    }
+
+    fn is_zero(&self) -> bool {
+        false
+    }
 }
 
-pub trait A {}
-impl A for &dyn E {}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_has() {
+        let x = &Symbol::new("x");
+        let y = &Symbol::new("y");
+        let expr = Eq::new(x, &(y + x));
+        assert!(expr.has(x));
+        assert!(expr.has(y));
+        assert!(expr.has(&(y + x)));
+        // For now expr.has doesn't check for commutativity
+        assert!(!expr.has(&(x + y)));
+        assert!(!expr.has(&Symbol::new("z")));
+    }
+
+    #[test]
+    fn test_expand_simple() {
+        let x = &Symbol::new("x") as &dyn Expr;
+        let y = &Symbol::new("y") as &dyn Expr;
+        let z = &Symbol::new("z") as &dyn Expr;
+
+        let expr = (x + y) * z;
+        let expected = x * z + y * z;
+
+        assert!(dbg!(expr.expand()).equals(&*expected))
+    }
+    #[test]
+    fn test_expand_with_first_arg_int() {
+        let x = &Symbol::new("x");
+        let y = &Symbol::new("y");
+        let z = &Symbol::new("z");
+        let i2 = &Integer::new(2);
+
+        let expr = i2 * &(x + y) * z;
+        let expected = i2 * x * z + i2 * y * z;
+
+        assert!(dbg!(expr.expand()).equals(&*expected))
+    }
+    #[test]
+    /// 2(x + y)(w + z) -> 2xw + 2xz + 2yw + 2yz
+    fn test_expand_complex() {
+        let x = &Symbol::new("x");
+        let y = &Symbol::new("y");
+        let w = &Symbol::new("w");
+        let z = &Symbol::new("z");
+        let i2 = &Integer::new(2);
+
+        let expr = i2 * &(x + y) * &(w + z);
+        let expected = i2 * x * w + i2 * x * z + i2 * y * w + i2 * y * z;
+
+        assert!(dbg!(expr.expand()).equals(&*dbg!(expected)))
+    }
+}
+
+// pub trait E: Any + Display {
+//     fn name(&self) -> String {
+//         std::any::type_name_of_val(self)
+//             .to_string()
+//             .split("::")
+//             .last()
+//             .unwrap()
+//             .to_string()
+//     }
+//     fn args(&self) -> Vec<&dyn A>;
+//     fn from_args(&self, args: &Vec<&dyn A>);
+//     fn clone(&self) -> Box<dyn A>;
+// }
+//
+// pub trait A {}
+// impl A for &dyn E {}
+
+pub struct ExprWrapper<'a, E: Expr> {
+    expr: &'a E,
+}
+
+impl<'a, E: Expr> std::cmp::PartialEq for ExprWrapper<'a, E> {
+    fn eq(&self, other: &Self) -> bool {
+        self.expr.srepr() == other.expr.srepr()
+    }
+}
+
+impl<'a, E: Expr> std::cmp::Eq for ExprWrapper<'a, E> {}
+
+impl<'a, E: Expr> ExprWrapper<'a, E> {
+    pub fn new(expr: &'a E) -> Self {
+        ExprWrapper { expr }
+    }
+}
+impl std::cmp::PartialEq for &dyn Expr {
+    fn eq(&self, other: &Self) -> bool {
+        self.srepr() == other.srepr()
+    }
+}
+
+impl std::cmp::Eq for &dyn Expr {}
+// impl<E: Expr> Expr for ExprWrapper<'_, E> {
+//     fn args(&self) -> Vec<Box<dyn Arg>> {
+//         todo!()
+//     }
+//
+//     fn clone_box(&self) -> Box<dyn Expr> {
+//         todo!()
+//     }
+//
+//     fn str(&self) -> String {
+//         todo!()
+//     }
+// }
+
+// impl<, E: Expr> Expr for ExprWrapper<'a, E> {
+//     fn args(&self) -> Vec<Box<dyn Arg>> {
+//         self.expr.args()
+//     }
+//
+//     fn clone_box(&self) -> Box<dyn Expr> {
+//         self.expr.clone_box()
+//     }
+//
+//     fn str(&self) -> String {
+//         self.expr.str()
+//     }
+// }
 
 pub trait ExprOperations<T> {
     fn subs_refs<'a, Iter: IntoIterator<Item = [&'a dyn Expr; 2]>>(
@@ -288,10 +488,18 @@ pub trait ExprOperations<T> {
             if self.srepr() == replaced.srepr() {
                 return replacement.clone_box();
             }
-
         }
         todo!()
     }
+
+    // fn map_exprs<F>(&self, op: F) -> Vec<Box<dyn Arg>>
+    // where
+    //     Self: Expr,
+    //     F: Fn(&dyn Expr) -> Box<dyn Expr>,
+    // {
+    //     todo!()
+    // }
+
     //     fn subs<'a, I: IntoIterator<Item = &'a [&'static dyn Expr; 2]>>(&'static self, substitutions: I) -> Box<dyn Expr>
     //     where
     //         Self: Expr + Sized
@@ -322,22 +530,6 @@ pub trait ExprOperations<T> {
 impl<T> ExprOperations<T> for T where T: Expr {}
 // impl ExprOperations<&dyn Expr> for &dyn Expr {}
 
-// impl Arg for &dyn Expr {
-//     fn srepr(&self) -> String {
-//         todo!()
-//     }
-//
-//     fn clone_arg(&self) -> Box<dyn Arg> {
-//         todo!()
-//     }
-// }
-
-// impl<T> fmt::Debug for T where T: Expr + Arg {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         write!(f, "{}", self.srepr())
-//     }
-// }
-
 impl fmt::Display for &dyn Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.str())
@@ -364,69 +556,17 @@ impl std::fmt::Display for Box<dyn Expr> {
     }
 }
 
-// impl<T> Expr for T
-// where
-//     T: Num + 'static + std::fmt::Display + Clone + Sync + Send,
-// {
-//     fn args(&self) -> Vec<Box<dyn Expr>> {
-//         vec![]
-//     }
-//
-//     fn clone_box(&self) -> Box<dyn Expr> {
-//         Box::new(self.clone())
-//     }
-//
-//     fn str(&self) -> String {
-//         format!("{}", self)
-//     }
-// }
-
 impl Clone for Box<dyn Expr> {
     fn clone(&self) -> Self {
         self.clone_box()
     }
 }
 
-// Overload multiply operator
-impl std::ops::Mul for &Box<dyn Expr> {
+impl std::ops::Neg for &dyn Expr {
     type Output = Box<dyn Expr>;
 
-    fn mul(self, rhs: &Box<dyn Expr>) -> Self::Output {
-        Mul::new(vec![&self, &rhs])
-    }
-}
-
-impl std::ops::Mul for Box<dyn Expr> {
-    type Output = Box<dyn Expr>;
-
-    fn mul(self, rhs: Box<dyn Expr>) -> Self::Output {
-        Mul::new(vec![&self, &rhs])
-    }
-}
-
-impl std::ops::Mul<&Box<dyn Expr>> for Box<dyn Expr> {
-    type Output = Box<dyn Expr>;
-
-    fn mul(self, rhs: &Box<dyn Expr>) -> Self::Output {
-        Mul::new(vec![&self, rhs])
-    }
-}
-
-// impl std::
-
-impl std::ops::Add for &Box<dyn Expr> {
-    type Output = Box<dyn Expr>;
-
-    fn add(self, rhs: &Box<dyn Expr>) -> Self::Output {
-        Add::new(vec![&self, &rhs])
-    }
-}
-
-impl std::ops::Add for Box<dyn Expr> {
-    type Output = Box<dyn Expr>;
-
-    fn add(self, rhs: Box<dyn Expr>) -> Self::Output {
-        Add::new(vec![&self, &rhs])
+    fn neg(self) -> Self::Output {
+        Integer::new_box(-1) * self
     }
 }
 
@@ -434,7 +574,7 @@ impl std::ops::Neg for &Box<dyn Expr> {
     type Output = Box<dyn Expr>;
 
     fn neg(self) -> Self::Output {
-        Mul::new(vec![&Integer::new(-1), &self])
+        -&**self
     }
 }
 
@@ -442,43 +582,9 @@ impl std::ops::Neg for Box<dyn Expr> {
     type Output = Box<dyn Expr>;
 
     fn neg(self) -> Self::Output {
-        Mul::new(vec![&Integer::new(-1), &self])
+        -&*self
     }
 }
-
-impl std::ops::Sub for &Box<dyn Expr> {
-    type Output = Box<dyn Expr>;
-
-    fn sub(self, rhs: &Box<dyn Expr>) -> Self::Output {
-        Add::new(vec![&self, &(Integer::new(-1) * rhs)])
-    }
-}
-
-impl std::ops::Sub<Box<dyn Expr>> for &Box<dyn Expr> {
-    type Output = Box<dyn Expr>;
-
-    fn sub(self, rhs: Box<dyn Expr>) -> Self::Output {
-        Add::new(vec![&self, &(Integer::new(-1) * rhs)])
-    }
-}
-
-impl std::ops::Sub<&Box<dyn Expr>> for Box<dyn Expr> {
-    type Output = Box<dyn Expr>;
-
-    fn sub(self, rhs: &Box<dyn Expr>) -> Self::Output {
-        Add::new(vec![&self, &(Integer::new(-1) * rhs)])
-    }
-}
-
-impl std::ops::Sub for Box<dyn Expr> {
-    type Output = Box<dyn Expr>;
-
-    fn sub(self, rhs: Box<dyn Expr>) -> Self::Output {
-        Add::new(vec![&self, &(Integer::new(-1) * &rhs)])
-    }
-}
-
-
 
 impl std::ops::Div for Box<dyn Expr> {
     type Output = Box<dyn Expr>;
