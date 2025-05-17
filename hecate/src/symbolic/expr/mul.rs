@@ -198,9 +198,10 @@ impl std::ops::Mul for &dyn Expr {
                 if a.base().is_number()
                     && b.base().is_number()
                     && b.exponent().is_number()
-                    && a.exponent() == b.exponent() => {
-                        return (a.base() * b.base()).pow(&a.exponent().clone_box())
-                }
+                    && a.exponent() == b.exponent() =>
+            {
+                return (a.base() * b.base()).pow(&a.exponent().clone_box());
+            }
             _ => (),
         }
 

@@ -491,7 +491,6 @@ impl From<&Integer> for (Rational, Box<dyn Expr>) {
     }
 }
 
-
 impl From<&Rational> for (Rational, Box<dyn Expr>) {
     fn from(r: &Rational) -> Self {
         (r.clone(), Integer::new_box(1))

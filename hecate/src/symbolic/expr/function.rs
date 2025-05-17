@@ -42,7 +42,6 @@ impl Expr for Func {
         f(&self.args.iter().map(|s| s.clone_arg()).collect::<Vec<_>>());
     }
 
-
     fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
         let name = args[0]
             .as_any()

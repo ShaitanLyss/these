@@ -1,6 +1,5 @@
 use super::*;
 
-
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Integer {
     pub value: isize,
@@ -16,7 +15,11 @@ impl Expr for Integer {
     }
 
     fn as_f64(&self) -> Option<f64> {
-        Some(self.value.to_f64().expect("hopefully value holds within f64"))
+        Some(
+            self.value
+                .to_f64()
+                .expect("hopefully value holds within f64"),
+        )
     }
     fn is_one(&self) -> bool {
         self.value == 1
@@ -98,14 +101,13 @@ impl std::ops::Neg for Integer {
         }
         Integer::new(-self.value)
     }
-
 }
 
 impl std::ops::Neg for &Integer {
     type Output = Integer;
 
     fn neg(self) -> Self::Output {
-        - *self
+        -*self
     }
 }
 
@@ -124,4 +126,3 @@ impl std::ops::Mul<&Box<dyn Expr>> for &Integer {
         (self as &dyn Expr) * rhs.get_ref()
     }
 }
-

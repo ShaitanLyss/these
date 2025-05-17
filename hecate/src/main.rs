@@ -1,8 +1,5 @@
 use llrt_modules::module_builder::ModuleBuilder;
-use rquickjs::{
-    async_with, embed, loader::Bundle, AsyncContext, AsyncRuntime
-};
-
+use rquickjs::{AsyncContext, AsyncRuntime, async_with, embed, loader::Bundle};
 
 use anyhow::Result;
 use hecate::{self};
@@ -21,7 +18,7 @@ struct Args {
 enum Commands {
     Cpp,
     Test,
-    Matrixify
+    Matrixify,
 }
 
 // fn print(s: String) {
@@ -31,7 +28,6 @@ enum Commands {
 // fn printstderr(s: String) {
 //     eprintln!("{s}");
 // }
-
 
 /// load the `my_module.js` file and name it myModule
 #[rust_analyzer::skip]
@@ -98,7 +94,9 @@ async fn test_js() -> Result<()> {
     // let module_resolver = module_resolver.add_name("bundle");
     // let global_attachment = global_attachment.add_name("bundle");
     // module_loader.add_module("bundle", BUNDLE);
-    runtime.set_loader((BUNDLE, module_resolver,), (BUNDLE, module_loader,)).await;
+    runtime
+        .set_loader((BUNDLE, module_resolver), (BUNDLE, module_loader))
+        .await;
 
     async_with!(context => |ctx| {
         global_attachment.attach(&ctx)?;
@@ -157,8 +155,6 @@ async fn test_js() -> Result<()> {
             },
             Err(_) => {
                 dbg!(ctx.catch());
-                
-
             }
         };
         let res: i32 = ctx.eval("res")?;
@@ -172,7 +168,6 @@ async fn test_js() -> Result<()> {
 
     runtime.idle().await;
 
-
     Ok(())
 }
 
@@ -181,8 +176,12 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     match &args.command {
-        Commands::Cpp=>unsafe{println!("{}",hecate::add(-12,24));},
-        Commands::Test=>{test_js().await?;}
+        Commands::Cpp => unsafe {
+            println!("{}", hecate::add(-12, 24));
+        },
+        Commands::Test => {
+            test_js().await?;
+        }
         Commands::Matrixify => {
             use hecate::symbolic::*;
             let x = &Symbol::new_box("x");
@@ -194,20 +193,21 @@ async fn main() -> Result<()> {
             // let nabla = &Symbol::new("nabla");
             let c = &Symbol::new_box("c");
             let laplacian = &Symbol::new_box("laplacian");
-            let addition = Mul::new_box(vec![&Integer::new_box(2), &Add::new_box(vec![&x, &x, &y, &z])]);
+            let addition = Mul::new_box(vec![
+                &Integer::new_box(2),
+                &Add::new_box(vec![&x, &x, &y, &z]),
+            ]);
 
-            
             println!("{:?}", addition);
-            println!("{}",addition);
+            println!("{}", addition);
             let test_subs = addition.subs(&vec![[x.clone_box(), y.clone_box()]]);
             println!("Substitution: \n{}", test_subs);
 
             println!("{}", Integral::new(f));
             println!("x == x : {}", Symbol::new_box("x") == Symbol::new_box("x"));
-        
 
-            let eq = &Eq::into_new(&(Diff::new(u, vec!(t, t)) - c.ipow(2) * laplacian * u), f);
-            println!("\nWave Equation:\n{}",eq as &dyn Expr);
+            let eq = &Eq::into_new(&(Diff::new(u, vec![t, t]) - c.ipow(2) * laplacian * u), f);
+            println!("\nWave Equation:\n{}", eq as &dyn Expr);
 
             let system = System::new(["u"], ["f"], [eq]);
             print!("\n{system:#}\n");
@@ -220,10 +220,7 @@ async fn main() -> Result<()> {
 
             let system = system.simplified();
             println!("\n{system:#}");
-
-
-
-        },
+        }
     }
     Ok(())
 }

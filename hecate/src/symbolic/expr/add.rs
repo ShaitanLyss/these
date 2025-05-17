@@ -28,7 +28,6 @@ impl From<Vec<&Box<dyn Expr>>> for Add {
 }
 
 impl Expr for Add {
-
     fn known_expr(&self) -> KnownExpr {
         KnownExpr::Add(self)
     }
@@ -127,7 +126,7 @@ impl std::ops::Add for &dyn Expr {
                 KnownExpr::Integer(Integer { value: a }),
                 KnownExpr::Integer(Integer { value: b }),
             ) => return Integer::new_box(a + b),
-            ( KnownExpr::Rational(r1), KnownExpr::Rational(r2) ) => return Box::new(r1 + r2), 
+            (KnownExpr::Rational(r1), KnownExpr::Rational(r2)) => return Box::new(r1 + r2),
             (KnownExpr::Add(Add { operands: ops_a }), KnownExpr::Add(Add { operands: ops_b })) => {
                 ops_a
                     .iter()
@@ -183,8 +182,7 @@ impl std::ops::Add for &dyn Expr {
             if !coeff.is_one() {
                 operands.push(coeff.simplify() * expr);
             } else {
-
-            operands.push(expr)
+                operands.push(expr)
             }
         }
 

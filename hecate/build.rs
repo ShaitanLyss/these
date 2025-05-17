@@ -1,5 +1,5 @@
-use std::{env, path::PathBuf};
 use std::process::Command;
+use std::{env, path::PathBuf};
 
 use bindgen;
 use cmake;
@@ -30,7 +30,6 @@ fn main() {
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
 
-
     // Build js package with pnpm from js folder
     // Ensure pnpm is installed
     Command::new("pnpm")
@@ -49,6 +48,4 @@ fn main() {
         .arg("build")
         .status()
         .expect("Failed to build js package.");
-
-
 }

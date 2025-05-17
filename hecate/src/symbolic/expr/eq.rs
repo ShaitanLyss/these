@@ -107,7 +107,6 @@ impl Eq {
             res -= *t;
         }
 
-
         let (coeff, _) = (&res.lhs).get_coeff();
 
         if coeff.is_zero() {
@@ -123,12 +122,13 @@ impl Eq {
             for op in operands {
                 if !symbols.iter().any(|s| op.has(s.get_ref())) {
                     symbols_coeff.push(op.clone_box());
-                    
                 }
             }
         }
 
-        let symbols_coeff = Mul { operands: symbols_coeff };
+        let symbols_coeff = Mul {
+            operands: symbols_coeff,
+        };
         res /= symbols_coeff.get_ref();
 
         res
@@ -182,7 +182,5 @@ mod tests {
         let expected = Eq::new(x, &*(y / z));
 
         assert_eq!(expr.solve([x.get_ref()]), expected)
-
     }
-    
 }
