@@ -7,7 +7,6 @@ pub struct Rational {
 }
 
 impl Expr for Rational {
-
     fn known_expr(&self) -> KnownExpr {
         KnownExpr::Rational(self)
     }
@@ -46,9 +45,16 @@ impl Expr for Rational {
     fn is_neg_one(&self) -> bool {
         self.num == -self.denom
     }
+    fn is_number(&self) -> bool {
+        true
+    }
 
     fn is_negative_number(&self) -> bool {
         self.num * self.denom < 0
+    }
+
+    fn as_f64(&self) -> Option<f64> {
+        Some(self.num.to_f64().unwrap() / self.denom.to_f64().unwrap())
     }
 }
 

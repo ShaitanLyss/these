@@ -265,6 +265,10 @@ pub trait Expr: Arg + Sync + Send {
         }
     }
 
+    fn as_f64(&self) -> Option<f64> {
+        None
+    }
+
     fn as_int(&self) -> Option<Integer> {
         let res = self.clone_box();
         match KnownExpr::from_expr_box(&res) {
@@ -370,6 +374,10 @@ pub trait Expr: Arg + Sync + Send {
         false
     }
     fn is_neg_one(&self) -> bool {
+        false
+    }
+
+    fn is_number(&self) -> bool {
         false
     }
 
@@ -482,6 +490,7 @@ impl From<&Integer> for (Rational, Box<dyn Expr>) {
         (i.into(), Integer::new_box(1))
     }
 }
+
 
 impl From<&Rational> for (Rational, Box<dyn Expr>) {
     fn from(r: &Rational) -> Self {

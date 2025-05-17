@@ -189,10 +189,19 @@ impl std::ops::Mul for &dyn Expr {
 
         match (self.known_expr(), rhs.known_expr()) {
             (KnownExpr::Rational(a), KnownExpr::Rational(b)) => return Box::new(*a * *b),
-            (KnownExpr::Integer(a), KnownExpr::Integer(b)) => return Integer::new_box(a.value * b.value),
+            (KnownExpr::Integer(a), KnownExpr::Integer(b)) => {
+                return Integer::new_box(a.value * b.value);
+            }
             (KnownExpr::Integer(a), KnownExpr::Rational(b)) => return Box::new(*b * a),
             (KnownExpr::Rational(a), KnownExpr::Integer(b)) => return Box::new(*a * b),
-            _ => ()
+            (KnownExpr::Pow(a), KnownExpr::Pow(b))
+                if a.base().is_number()
+                    && b.base().is_number()
+                    && b.exponent().is_number()
+                    && a.exponent() == b.exponent() => {
+                        return (a.base() * b.base()).pow(&a.exponent().clone_box())
+                }
+            _ => (),
         }
 
         let (coeff_a, lhs) = self.get_coeff();

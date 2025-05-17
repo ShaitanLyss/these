@@ -93,6 +93,16 @@ impl Pow {
         } else if exponent.is_zero() {
             Integer::one_box()
         } else {
+            match (base.as_f64(), exponent.as_f64()) {
+                (Some(b), Some(e)) => {
+                    let res = b.powf(e);
+
+                    if res.fract() == 0. {
+                        return Integer::new_box(res.to_isize().unwrap());
+                    }
+                }
+                _ => (),
+            }
             Pow::new_box(base.clone(), exponent)
         }
     }
@@ -113,6 +123,22 @@ mod tests {
         assert_eq!(
             Integer::new(2).sqrt().srepr(),
             "Pow(Integer(2), Rational(1, 2))"
+        )
+    }
+
+    #[test]
+    fn test_sqrt_4_simplifies() {
+        assert_eq!(
+            Integer::new(4).pow(&Rational::new_box(1, 2)).srepr(),
+            "Integer(2)"
+        )
+    }
+
+    #[test]
+    fn test_mul_sqrts() {
+        assert_eq!(
+            (Integer::new_box(2).sqrt() * Integer::new_box(3).sqrt()).srepr(),
+            "Pow(Integer(6), Rational(1, 2))"
         )
     }
 }

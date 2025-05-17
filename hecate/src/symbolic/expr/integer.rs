@@ -14,6 +14,10 @@ impl Expr for Integer {
     fn known_expr(&self) -> KnownExpr {
         KnownExpr::Integer(self)
     }
+
+    fn as_f64(&self) -> Option<f64> {
+        Some(self.value.to_f64().expect("hopefully value holds within f64"))
+    }
     fn is_one(&self) -> bool {
         self.value == 1
     }
@@ -24,6 +28,10 @@ impl Expr for Integer {
 
     fn is_negative_number(&self) -> bool {
         self.value < 0
+    }
+
+    fn is_number(&self) -> bool {
+        true
     }
 
     fn is_zero(&self) -> bool {
