@@ -1,0 +1,26 @@
+name: Rust Unit Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: beta
+
+    - name: Run cargo test
+      run: cargo test
+      working-directory: ./hecate
+
