@@ -26,6 +26,7 @@ jobs:
       with:
         node-version: 23
         cache: 'pnpm'
+        cache-dependency-path: ./hecate/js/pnpm-lock.yaml
         
 
     - name: Install Rust
