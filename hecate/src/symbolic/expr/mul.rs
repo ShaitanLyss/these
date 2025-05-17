@@ -1,3 +1,5 @@
+use indexmap::IndexMap;
+
 use super::*;
 
 #[derive(Clone)]
@@ -6,6 +8,12 @@ pub struct Mul {
 }
 
 impl Expr for Mul {
+    fn known_expr(&self) -> KnownExpr {
+        KnownExpr::Mul(self)
+    }
+    fn get_ref<'a>(&'a self) -> &'a dyn Expr {
+        self as &dyn Expr
+    }
     fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ()) {
         self.operands.iter().for_each(|e| f(&**e));
     }
@@ -99,21 +107,11 @@ impl Mul {
     }
 }
 
-impl<E: Expr> std::ops::Mul<&E> for Mul {
-    type Output = Mul;
-
-    fn mul(self, rhs: &E) -> Self::Output {
-        let mut operands = self.operands.clone();
-        operands.push(rhs.clone_box());
-        Mul { operands }
-    }
-}
-
 impl<E: Expr> std::ops::Mul<&E> for Box<dyn Expr> {
     type Output = Box<dyn Expr>;
 
     fn mul(self, rhs: &E) -> Self::Output {
-        &*self * rhs
+        &*self * rhs.get_ref()
     }
 }
 
@@ -169,76 +167,166 @@ impl std::ops::MulAssign<&Box<dyn Expr>> for Box<dyn Expr> {
     }
 }
 
+impl std::ops::MulAssign for Box<dyn Expr> {
+    fn mul_assign(&mut self, rhs: Box<dyn Expr>) {
+        *self *= &*rhs;
+    }
+}
+
 impl std::ops::Mul for &dyn Expr {
     type Output = Box<dyn Expr>;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        match (KnownExpr::from_expr(self), KnownExpr::from_expr(rhs)) {
-            (KnownExpr::Mul(Mul { operands: ops_a }), KnownExpr::Mul(Mul { operands: ops_b })) => {
-                let mut operands: Vec<Box<dyn Expr>> =
-                    Vec::with_capacity(ops_a.len() + ops_b.len());
-                let mut coeff: Option<isize> = None;
+        if self.is_zero() || rhs.is_zero() {
+            return Integer::new_box(0);
+        }
+        if self.is_one() {
+            return rhs.clone_box();
+        }
+        if rhs.is_one() {
+            return self.clone_box();
+        }
 
-                for op in ops_a.iter().chain(ops_b.iter()) {
-                    match KnownExpr::from_expr_box(op) {
-                        KnownExpr::Integer(Integer { value }) => {
-                            if let Some(prev_coeff) = coeff {
-                                coeff = Some(prev_coeff * value)
-                            } else {
-                                coeff = Some(*value)
-                            }
-                        }
+        match (self.known_expr(), rhs.known_expr()) {
+            (KnownExpr::Rational(a), KnownExpr::Rational(b)) => return Box::new(*a * *b),
+            (KnownExpr::Integer(a), KnownExpr::Integer(b)) => return Integer::new_box(a.value * b.value),
+            (KnownExpr::Integer(a), KnownExpr::Rational(b)) => return Box::new(*b * a),
+            (KnownExpr::Rational(a), KnownExpr::Integer(b)) => return Box::new(*a * b),
+            _ => ()
+        }
 
-                        _ => operands.push(op.clone_box()),
-                    }
-                }
+        let (coeff_a, lhs) = self.get_coeff();
+        let (coeff_b, rhs) = rhs.get_coeff();
 
-                if let Some(coeff) = coeff
-                    && coeff != 1
-                {
-                    operands.insert(0, Integer::new_box(coeff));
-                }
+        let coeff = (coeff_a) * coeff_b;
+        let mut new_operands: Vec<&Box<dyn Expr>> = Vec::new();
 
-                if operands.len() == 1 {
-                    return operands[0].clone_box();
-                }
-
-                Box::new(Mul { operands })
+        match (
+            KnownExpr::from_expr_box(&lhs),
+            KnownExpr::from_expr_box(&rhs),
+        ) {
+            (KnownExpr::Mul(Mul { operands: a }), KnownExpr::Mul(Mul { operands: b })) => {
+                a.iter()
+                    .chain(b.iter())
+                    .for_each(|op| new_operands.push(&*op));
             }
             (_, KnownExpr::Mul(Mul { operands })) => {
-                let mut new_operands = Vec::with_capacity(operands.len() + 1);
-                new_operands.push(self);
-                operands
-                    .iter()
-                    .filter_map(|o| if o.is_one() { None } else { Some(&**o) })
-                    .for_each(|o| new_operands.push(o));
-
-                if operands.len() == 0 {
-                    panic!("Need to fix");
-                    Integer::new_box(0)
-                } else if operands.len() == 1 {
-                    new_operands[0].clone_box()
-                } else {
-                    Box::new(Mul::new(new_operands))
+                if !lhs.is_one() {
+                    new_operands.push(&lhs);
                 }
+                operands.iter().for_each(|op| new_operands.push(&*op));
             }
             (KnownExpr::Mul(Mul { operands }), _) => {
-                let mut operands: Vec<_> = operands
-                    .iter()
-                    .filter_map(|o| if o.is_one() { None } else { Some(&**o) })
-                    .collect();
-                operands.push(rhs);
-
-                if operands.len() == 0 {
-                    todo!()
-                } else if operands.len() == 1 {
-                    operands[0].clone_box()
-                } else {
-                    Box::new(Mul::new(operands))
+                operands.iter().for_each(|op| new_operands.push(&*op));
+                if !rhs.is_one() {
+                    new_operands.push(&rhs);
                 }
             }
-            _ => Box::new(Mul::new([self, rhs])),
+
+            _ => {
+                if !lhs.is_one() {
+                    new_operands.push(&lhs);
+                }
+                if !rhs.is_one() {
+                    new_operands.push(&rhs);
+                }
+            }
         }
+        let coeff = coeff.simplify();
+        if !coeff.is_one() {
+            new_operands.insert(0, &coeff);
+        }
+
+        let mut operands_exponents: IndexMap<Box<dyn Expr>, Box<dyn Expr>> = IndexMap::new();
+
+        for op in new_operands {
+            let (expr, exponent) = op.get_exponent();
+            let entry = operands_exponents
+                .entry(expr)
+                .or_insert(Integer::zero_box());
+            *entry += (exponent);
+        }
+        let mut new_operands = Vec::with_capacity(operands_exponents.len());
+
+        for (expr, exponent) in operands_exponents {
+            if exponent.is_zero() {
+                continue;
+            }
+
+            if exponent.is_one() {
+                new_operands.push(expr);
+            } else {
+                new_operands.push(Box::new(Pow {
+                    base: expr,
+                    exponent,
+                }));
+            }
+        }
+
+        if new_operands.len() == 0 {
+            return Integer::one_box();
+        }
+
+        if new_operands.len() == 1 {
+            return new_operands[0].clone_box();
+        }
+
+        Box::new(Mul {
+            operands: new_operands,
+        })
+    }
+}
+
+impl std::ops::Mul<Box<dyn Expr>> for &dyn Expr {
+    type Output = Box<dyn Expr>;
+
+    fn mul(self, rhs: Box<dyn Expr>) -> Self::Output {
+        self * &*rhs
+    }
+}
+
+impl std::ops::Div for &dyn Expr {
+    type Output = Box<dyn Expr>;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        self * rhs.ipow(-1)
+    }
+}
+impl std::ops::Div<&dyn Expr> for Box<dyn Expr> {
+    type Output = Box<dyn Expr>;
+
+    fn div(self, rhs: &dyn Expr) -> Self::Output {
+        &*self / rhs
+    }
+}
+
+impl<E: Expr> std::ops::Div<&E> for Box<dyn Expr> {
+    type Output = Box<dyn Expr>;
+
+    fn div(self, rhs: &E) -> Self::Output {
+        &*self / rhs
+    }
+}
+
+impl std::ops::Div for Box<dyn Expr> {
+    type Output = Box<dyn Expr>;
+
+    fn div(self, rhs: Box<dyn Expr>) -> Self::Output {
+        &*self / &*rhs
+    }
+}
+
+impl std::ops::Div<&Box<dyn Expr>> for Box<dyn Expr> {
+    type Output = Box<dyn Expr>;
+
+    fn div(self, rhs: &Box<dyn Expr>) -> Self::Output {
+        &*self / &**rhs
+    }
+}
+
+impl std::ops::DivAssign<&dyn Expr> for Box<dyn Expr> {
+    fn div_assign(&mut self, rhs: &dyn Expr) {
+        *self = &**self / rhs
     }
 }
 
@@ -283,5 +371,17 @@ mod tests {
         let expected = "Add(Diff(Symbol(u), (Symbol(t), Symbol(t))), Mul(Integer(-1), Pow(Symbol(c), Integer(2)), Symbol(Δ), Symbol(u)))";
 
         assert_eq!(expr.srepr(), expected);
+    }
+
+    #[test]
+    fn test_div() {
+        let a = Symbol::new_box("a");
+        let b = Symbol::new_box("b");
+        let c = Symbol::new_box("c");
+        let expr = (a - b) / c;
+        assert_eq!(
+            expr.srepr(),
+            "Mul(Add(Symbol(a), Mul(Integer(-1), Symbol(b))), Pow(Symbol(c), Integer(-1)))"
+        );
     }
 }

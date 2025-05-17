@@ -1,3 +1,5 @@
+use indexmap::IndexMap;
+
 use super::*;
 
 #[derive(Clone)]
@@ -26,6 +28,10 @@ impl From<Vec<&Box<dyn Expr>>> for Add {
 }
 
 impl Expr for Add {
+
+    fn known_expr(&self) -> KnownExpr {
+        KnownExpr::Add(self)
+    }
     fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ()) {
         self.operands.iter().for_each(|e| f(&**e));
     }
@@ -63,26 +69,34 @@ impl Expr for Add {
     }
 
     fn expand(&self) -> Box<dyn Expr> {
-        let operands: Vec<Box<dyn Expr>> = self.operands.iter().flat_map(|op| {
-            let op = op.expand();
-            
-            match KnownExpr::from_expr_box(&op) {
-                KnownExpr::Add(Add { operands }) => {
-                    operands.clone()
-                }
-                _ => vec!(op.clone_box())
-            }
+        let operands: Vec<Box<dyn Expr>> = self
+            .operands
+            .iter()
+            .flat_map(|op| {
+                let op = op.expand();
 
-        }).collect();
+                match KnownExpr::from_expr_box(&op) {
+                    KnownExpr::Add(Add { operands }) => operands.clone(),
+                    _ => vec![op.clone_box()],
+                }
+            })
+            .collect();
 
         if operands.len() == 0 {
             Integer::new_box(0)
         } else if operands.len() == 1 {
             operands[0].clone()
         } else {
-            Box::new(Add {operands})
+            Box::new(Add { operands })
         }
-        
+    }
+
+    fn get_ref<'a>(&'a self) -> &'a dyn Expr {
+        self as &dyn Expr
+    }
+
+    fn terms<'a>(&'a self) -> Box<dyn Iterator<Item = &'a dyn Expr> + 'a> {
+        Box::new(self.operands.iter().map(|o| &**o))
     }
 }
 
@@ -96,46 +110,90 @@ impl std::ops::Add for &dyn Expr {
     type Output = Box<dyn Expr>;
 
     fn add(self, rhs: Self) -> Self::Output {
+        if self.is_zero() {
+            return rhs.clone_box();
+        }
+        if rhs.is_zero() {
+            return self.clone_box();
+        }
+        if self == &*-rhs {
+            return Integer::new_box(0);
+        }
+
+        let mut term_coeffs: IndexMap<Box<dyn Expr>, Rational> = IndexMap::new();
+
         match (KnownExpr::from_expr(self), KnownExpr::from_expr(rhs)) {
+            (
+                KnownExpr::Integer(Integer { value: a }),
+                KnownExpr::Integer(Integer { value: b }),
+            ) => return Integer::new_box(a + b),
+            ( KnownExpr::Rational(r1), KnownExpr::Rational(r2) ) => return Box::new(r1 + r2), 
             (KnownExpr::Add(Add { operands: ops_a }), KnownExpr::Add(Add { operands: ops_b })) => {
-                let operands: Vec<_> = ops_a
+                ops_a
                     .iter()
                     .chain(ops_b.iter())
                     .filter(|x| !x.is_zero())
-                    .collect();
-
-                if operands.len() == 0 {
-                    Integer::new_box(0)
-                } else if operands.len() == 1 {
-                    operands[0].clone_box()
-                } else {
-                    Box::new(Add::from(operands))
-                }
+                    .for_each(|op| {
+                        let (coeff, expr) = op.get_coeff();
+                        let entry = term_coeffs.entry(expr.clone()).or_insert(Rational::zero());
+                        *entry += coeff;
+                    });
             }
             (KnownExpr::Add(Add { operands }), _) => {
-                let mut operands = operands.clone();
-                operands.push(rhs.clone_box());
-
-                if operands.len() == 0 {
-                    Integer::new_box(0)
-                } else if operands.len() == 1 {
-                    operands[0].clone_box()
-                } else {
-                    Box::new(Add { operands })
-                }
+                operands
+                    .iter()
+                    .map(|e| e.get_ref())
+                    .chain(iter::once(rhs))
+                    .filter(|x| !x.is_zero())
+                    .for_each(|op| {
+                        let (coeff, expr) = op.get_coeff();
+                        let entry = term_coeffs.entry(expr.clone()).or_insert(Rational::zero());
+                        *entry += coeff;
+                    });
             }
             (_, KnownExpr::Add(Add { operands })) => {
-                let mut operands = operands.clone();
-                operands.insert(0, self.clone_box());
-                if operands.len() == 0 {
-                    Integer::new_box(0)
-                } else if operands.len() == 1 {
-                    operands[0].clone_box()
-                } else {
-                    Box::new(Add { operands })
-                }
+                iter::once(self)
+                    .chain(operands.iter().map(|e| e.get_ref()))
+                    .filter(|x| !x.is_zero())
+                    .for_each(|op| {
+                        let (coeff, expr) = op.get_coeff();
+                        let entry = term_coeffs.entry(expr.clone()).or_insert(Rational::zero());
+                        *entry += coeff;
+                    });
             }
-            _ => Box::new(Add::new([self, rhs])),
+            _ => {
+                iter::once(self)
+                    .chain(iter::once(rhs))
+                    .filter(|x| !x.is_zero())
+                    .for_each(|op| {
+                        let (coeff, expr) = op.get_coeff();
+                        let entry = term_coeffs.entry(expr.clone()).or_insert(Rational::zero());
+                        *entry += coeff;
+                    });
+            }
+        };
+
+        let mut operands: Vec<Box<dyn Expr>> = Vec::with_capacity(term_coeffs.len());
+
+        for (expr, coeff) in term_coeffs {
+            if coeff.is_zero() {
+                continue;
+            }
+
+            if !coeff.is_one() {
+                operands.push(coeff.simplify() * expr);
+            } else {
+
+            operands.push(expr)
+            }
+        }
+
+        if operands.len() == 0 {
+            Integer::new_box(0)
+        } else if operands.len() == 1 {
+            operands[0].clone_box()
+        } else {
+            Box::new(Add { operands })
         }
     }
 }
@@ -152,6 +210,12 @@ impl std::ops::Add for Box<dyn Expr> {
 
     fn add(self, rhs: Box<dyn Expr>) -> Self::Output {
         &*self + &*rhs
+    }
+}
+
+impl std::ops::AddAssign for Box<dyn Expr> {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.get_ref() + rhs.get_ref();
     }
 }
 impl<'a> From<&'a Add> for &'a dyn Expr {
@@ -204,6 +268,12 @@ impl std::ops::Sub for Box<dyn Expr> {
 
     fn sub(self, rhs: Box<dyn Expr>) -> Self::Output {
         &*self - &*rhs
+    }
+}
+
+impl std::ops::SubAssign<&dyn Expr> for Box<dyn Expr> {
+    fn sub_assign(&mut self, rhs: &dyn Expr) {
+        *self = &**self - rhs;
     }
 }
 

@@ -14,7 +14,7 @@ impl std::fmt::Display for System {
             "System\n{}",
             self.equations
                 .iter()
-                .map(|e| format!("> {}",  e.str()))
+                .map(|e| format!("> {}", e.str()))
                 .collect::<Vec<_>>()
                 .join("\n")
         )
@@ -114,16 +114,27 @@ impl System {
     }
 
     pub fn simplified(&self) -> Self {
-        self.with_equations(
-            self.equations
-                .iter()
-                .map(|e| {
-                    e.expand()
-                        .as_eq()
-                        .expect("Equations should remain equations")
-                })
-                .collect(),
-        )
+        let mut equations = self.equations.clone();
+        // let equations = self.equations.iter().map(|e| e.expand().as_eq().unwrap()).collect();
+
+        let v_curr = &Func::new("v^n", []);
+
+        equations[1] = equations[1]
+            .solve([v_curr.get_ref()])
+            .expand()
+            .as_eq()
+            .unwrap();
+        equations[0] = equations[0]
+            .subs(&vec![[v_curr.clone_box(), equations[1].rhs.clone_box()]])
+            .as_eq()
+            .expect("should remain an eq");
+        equations[0] = equations[0]
+            .solve([Func::new("u^n", []).get_ref()])
+            .expand()
+            .as_eq()
+            .unwrap();
+
+        self.with_equations(equations)
     }
 
     pub fn with_equations(&self, equations: Vec<Eq>) -> Self {

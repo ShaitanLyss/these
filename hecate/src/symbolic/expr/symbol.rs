@@ -22,6 +22,12 @@ impl Symbol {
 }
 
 impl Expr for Symbol {
+    fn known_expr(&self) -> KnownExpr {
+        KnownExpr::Symbol(self)
+    }
+    fn get_ref<'a>(&'a self) -> &'a dyn Expr {
+        self as &dyn Expr
+    }
     fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ()) {
         f(&self.name);
     }
@@ -42,13 +48,26 @@ impl Expr for Symbol {
     }
 }
 
-
 impl<E: Expr> std::ops::Add<&E> for &Symbol {
-    type Output = Add;
+    type Output = Box<dyn Expr>;
 
     fn add(self, rhs: &E) -> Self::Output {
-        Add::new([self as &dyn Expr, rhs as &dyn Expr])
+        self.get_ref() + rhs.get_ref()
     }
 }
 
+impl<E: Expr> std::ops::Mul<&E> for &Symbol {
+    type Output = Box<dyn Expr>;
 
+    fn mul(self, rhs: &E) -> Self::Output {
+        self.get_ref() * rhs.get_ref()
+    }
+}
+
+impl<E: Expr> std::ops::Div<&E> for &Symbol {
+    type Output = Box<dyn Expr>;
+
+    fn div(self, rhs: &E) -> Self::Output {
+        self.get_ref() / rhs.get_ref()
+    }
+}

@@ -1,13 +1,11 @@
 use std::fmt;
 
-use crate::symbolic::Symbol;
-
-use super::{Arg, Expr};
+use super::*;
 
 #[derive(Clone)]
 pub struct Eq {
-    lhs: Box<dyn Expr>,
-    rhs: Box<dyn Expr>,
+    pub lhs: Box<dyn Expr>,
+    pub rhs: Box<dyn Expr>,
 }
 
 impl fmt::Debug for Eq {
@@ -16,7 +14,6 @@ impl fmt::Debug for Eq {
         // write!(f, "{}", self.str())
     }
 }
-
 
 impl Eq {
     pub fn into_new(lhs: &Box<dyn Expr>, rhs: &Box<dyn Expr>) -> Eq {
@@ -35,6 +32,9 @@ impl Eq {
 }
 
 impl Expr for Eq {
+    fn get_ref<'a>(&'a self) -> &'a dyn Expr {
+        self as &dyn Expr
+    }
     fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ()) {
         f(&*self.lhs);
         f(&*self.rhs);
@@ -56,11 +56,133 @@ impl Expr for Eq {
     }
 }
 
+impl std::ops::SubAssign<&dyn Expr> for Eq {
+    fn sub_assign(&mut self, rhs: &dyn Expr) {
+        self.lhs -= rhs;
+        self.rhs -= rhs;
+    }
+}
+
+impl std::ops::DivAssign<&dyn Expr> for Eq {
+    fn div_assign(&mut self, rhs: &dyn Expr) {
+        self.lhs /= rhs;
+        self.rhs /= rhs;
+    }
+}
+
+impl std::cmp::PartialEq for Eq {
+    fn eq(&self, other: &Self) -> bool {
+        &self.lhs == &other.lhs && &self.rhs == &other.rhs
+    }
+}
+
 impl Eq {
     // - Expand all terms containing solved symbols
     // - Move them to the left
     // - Others to the right
-    pub fn solve<S: IntoIterator<Item = Symbol>>(symbols: S) -> Eq {
-        todo!()
+    // - Factorize
+    // - Divide by factor of seeked symbol
+    pub fn solve<'a, S: IntoIterator<Item = &'a dyn Expr>>(&self, exprs: S) -> Eq {
+        let eq = (self.expand()).as_eq().expect("Should remain an eqation");
+
+        let symbols: Vec<_> = exprs.into_iter().collect();
+
+        let move_right: Vec<_> = eq
+            .lhs
+            .terms()
+            .filter(|e| symbols.iter().all(|s| !e.has(s.get_ref())))
+            .collect();
+        let move_left: Vec<_> = eq
+            .rhs
+            .terms()
+            .filter(|e| symbols.iter().any(|s| e.has(s.get_ref())))
+            .collect();
+
+        // x + y = 2x + 2y -> -x = y
+        // x + y = 2x + 2y -> -x = y
+
+        let mut res = eq.clone();
+
+        for t in move_right.iter().chain(move_left.iter()) {
+            res -= *t;
+        }
+
+
+        let (coeff, _) = (&res.lhs).get_coeff();
+
+        if coeff.is_zero() {
+            panic!("Solving failed")
+        }
+
+        if !coeff.is_one() {
+            res /= coeff.get_ref();
+        }
+
+        let mut symbols_coeff = Vec::new();
+        if let KnownExpr::Mul(Mul { operands }) = KnownExpr::from_expr_box(&res.lhs) {
+            for op in operands {
+                if !symbols.iter().any(|s| op.has(s.get_ref())) {
+                    symbols_coeff.push(op.clone_box());
+                    
+                }
+            }
+        }
+
+        let symbols_coeff = Mul { operands: symbols_coeff };
+        res /= symbols_coeff.get_ref();
+
+        res
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::symbolic::{Integer, Symbol};
+
+    #[test]
+    fn test_solve_solved() {
+        let x = &Symbol::new("x");
+
+        let expr = Eq::new(x, &Integer::zero()).solve([x.get_ref()]);
+        let expected = "Eq(Symbol(x), Integer(0))";
+
+        assert_eq!(expr.srepr(), expected)
+    }
+
+    #[test]
+    fn test_solve_basic() {
+        let x = &Symbol::new("x");
+
+        let expr = Eq::new(&Integer::zero(), x).solve([x.get_ref()]);
+        let expected = "Eq(Symbol(x), Integer(0))";
+
+        assert_eq!(expr.srepr(), expected)
+    }
+
+    #[test]
+    fn test_solve_normal() {
+        let x = &Symbol::new("x");
+        let y = &Symbol::new("y");
+        let two = &Integer::new(2);
+
+        let expr = Eq::new(y, &*(two * x));
+        let expected = Eq::new(x, &*(y / two));
+
+        assert_eq!(expr.solve([x.get_ref()]), expected)
+    }
+
+    #[test]
+    fn test_solve_non_number_coeff() {
+        let x = &Symbol::new("x");
+        let y = &Symbol::new("y");
+        let z = &Symbol::new("z");
+
+        let expr = Eq::new(y, &*(z * x));
+        let expected = Eq::new(x, &*(y / z));
+
+        assert_eq!(expr.solve([x.get_ref()]), expected)
+
+    }
+    
 }

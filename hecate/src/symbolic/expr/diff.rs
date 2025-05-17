@@ -21,6 +21,9 @@ impl Diff {
 }
 
 impl Expr for Diff {
+    fn get_ref<'a>(&'a self) -> &'a dyn Expr {
+        self as &dyn Expr
+    }
     fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ()) {
         f(&*self.f);
         f(&self.vars.iter().map(|v| v.clone_arg()).collect::<Vec<_>>());

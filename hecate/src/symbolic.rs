@@ -16,6 +16,7 @@ pub enum KnownExpr<'a> {
     Integer(&'a Integer),
     Symbol(&'a Symbol),
     Integral(&'a Integral),
+    Rational(&'a Rational),
     Eq(&'a Eq),
     Unknown,
 }
@@ -41,63 +42,10 @@ impl<'a> KnownExpr<'a> {
             KnownExpr::Integral(integral)
         } else if let Some(eq) = expr.downcast_ref::<Eq>() {
             KnownExpr::Eq(eq)
+        } else if let Some(rational) = expr.downcast_ref::<Rational>() {
+            KnownExpr::Rational(rational)
         } else {
             KnownExpr::Unknown
         }
-    }
-}
-
-#[derive(Clone)]
-pub struct Integer {
-    value: isize,
-}
-
-impl Expr for Integer {
-    fn is_one(&self) -> bool {
-        self.value == 1
-    }
-    
-    fn is_zero(&self) -> bool {
-        self.value == 0
-    }
-
-    fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ()) {
-        f(&self.value);
-    }
-
-    fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
-        let val = (&*args[0]) as &dyn Any;
-        Box::new(Integer {
-            value: val
-                .downcast_ref::<isize>()
-                .expect(&format!("{}", &type_name_of_val(args[0].as_any())))
-                .clone(),
-        })
-    }
-
-    fn clone_box(&self) -> Box<dyn Expr> {
-        Box::new(self.clone())
-    }
-
-    fn str(&self) -> String {
-        self.value.to_string()
-    }
-}
-
-impl Integer {
-    pub fn new_box(value: isize) -> Box<dyn Expr> {
-        Box::new(Integer { value })
-    }
-
-    pub fn new(value: isize) -> Self {
-        Integer { value }
-    }
-}
-
-impl<E: Expr> std::ops::Mul<&E> for &Integer {
-    type Output = Box<dyn Expr>;
-
-    fn mul(self, rhs: &E) -> Self::Output {
-        (self as &dyn Expr) * rhs
     }
 }

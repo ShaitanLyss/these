@@ -1,4 +1,5 @@
 use super::*;
+use num_traits::ToPrimitive;
 
 pub mod pow;
 pub use pow::*;
@@ -24,10 +25,17 @@ pub use integral::*;
 pub mod symbol;
 pub use symbol::*;
 
+pub mod integer;
+pub use integer::*;
+
+pub mod rational;
+pub use rational::*;
+
 use std::{
     any::Any,
     cmp::PartialEq,
     fmt::{self},
+    iter,
 };
 
 pub trait Arg: Any {
@@ -257,14 +265,30 @@ pub trait Expr: Arg + Sync + Send {
         }
     }
 
+    fn as_int(&self) -> Option<Integer> {
+        let res = self.clone_box();
+        match KnownExpr::from_expr_box(&res) {
+            KnownExpr::Integer(i) => Some(i.clone()),
+            _ => None,
+        }
+    }
+
     fn str(&self) -> String;
 
     fn pow(&self, exponent: &Box<dyn Expr>) -> Box<dyn Expr> {
-        Pow::new(&self.clone_box(), exponent)
+        Pow::pow(self.clone_box(), exponent.clone())
     }
 
     fn ipow(&self, exponent: isize) -> Box<dyn Expr> {
-        Pow::new(&self.clone_box(), &Integer::new_box(exponent))
+        Pow::pow(self.clone_box(), Integer::new_box(exponent))
+    }
+
+    fn sqrt(&self) -> Box<dyn Expr> {
+        Pow::pow(self.clone_box(), Rational::new_box(1, 2))
+    }
+
+    fn get_exponent(&self) -> (Box<dyn Expr>, Box<dyn Expr>) {
+        (self.clone_box(), Integer::one_box())
     }
 
     fn diff(&self, var: &str, order: usize) -> Box<dyn Expr> {
@@ -345,26 +369,163 @@ pub trait Expr: Arg + Sync + Send {
     fn is_one(&self) -> bool {
         false
     }
+    fn is_neg_one(&self) -> bool {
+        false
+    }
+
+    fn is_negative_number(&self) -> bool {
+        false //Todo better
+    }
 
     fn is_zero(&self) -> bool {
         false
     }
+
+    fn known_expr(&self) -> KnownExpr {
+        KnownExpr::Unknown
+    }
+
+    fn terms<'a>(&'a self) -> Box<dyn Iterator<Item = &'a dyn Expr> + 'a> {
+        Box::new(iter::once(self.get_ref()))
+    }
+
+    fn get_ref<'a>(&'a self) -> &'a dyn Expr;
+
+    fn get_coeff(&self) -> (Rational, Box<dyn Expr>) {
+        match KnownExpr::from_expr(self.get_ref()) {
+            KnownExpr::Integer(i) => i.into(),
+            KnownExpr::Pow(pow) => {
+                let (pow_coeff, pow_expr) = (pow.base().get_coeff());
+
+                if pow_coeff.is_one() {
+                    return (Rational::one(), pow_expr.pow(&pow.exponent().clone_box()));
+                }
+                let coeff_box = ((pow_coeff).pow(&(pow.exponent()).clone_box()));
+
+                match coeff_box.known_expr() {
+                    KnownExpr::Integer(i) => return (i.into(), pow_expr),
+                    KnownExpr::Rational(r) => return (*r, pow_expr),
+                    KnownExpr::Pow(Pow {
+                        base: coeff_base,
+                        exponent: _,
+                    }) => {
+                        return (
+                            Rational::one(),
+                            Pow::pow(
+                                coeff_base.clone_box() * pow_expr,
+                                pow.exponent().clone_box(),
+                            ),
+                        );
+                    }
+                    // _ if !coeff_box.is_one() => pow_expr = ((coeff_box) * (pow_expr)),
+
+                    // _ if !coeff_box.is_one() => {
+                    //     return (Rational::one(), coeff_box * pow_expr
+                    //
+                    //     )
+                    // },
+                    // _ => {
+                    //     return (Rational::one(), pow_expr)
+                    // }
+                    _ => panic!("help: {:?}", coeff_box),
+                }
+
+                // ((
+                //     coeff,
+                //     if pow_expr.is_one() {
+                //         Integer::new_box(1)
+                //     } else {
+                //         coeff_box * pow_expr.pow(&pow.exponent)
+                //     },
+                // ))
+            }
+            // KnownExpr::Pow(_) => {
+            //     todo!("pow no matter the exponent")
+            // }
+            KnownExpr::Rational(r) => r.into(),
+            KnownExpr::Mul(Mul { operands }) => {
+                let mut coeff = Rational::one();
+                let mut expr = Integer::new_box(1);
+
+                operands
+                    .iter()
+                    .for_each(|op| match KnownExpr::from_expr_box(op) {
+                        KnownExpr::Integer(i) => coeff *= i,
+                        KnownExpr::Rational(r) => coeff *= r,
+                        KnownExpr::Pow(Pow { base, exponent }) if exponent.is_neg_one() => {
+                            let (pow_coeff, pow_expr) = base.get_coeff();
+                            coeff /= pow_coeff;
+                            expr *= (Pow {
+                                base: pow_expr,
+                                exponent: Integer::new_box(-1),
+                            })
+                            .get_ref();
+                        }
+                        _ => expr *= op,
+                    });
+
+                (coeff, expr)
+            }
+            _ => (Rational::one(), self.clone_box()),
+        }
+    }
 }
+
+impl std::hash::Hash for Box<dyn Expr> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.srepr().hash(state);
+    }
+}
+
+impl From<&Integer> for (Rational, Box<dyn Expr>) {
+    fn from(i: &Integer) -> Self {
+        (i.into(), Integer::new_box(1))
+    }
+}
+
+impl From<&Rational> for (Rational, Box<dyn Expr>) {
+    fn from(r: &Rational) -> Self {
+        (r.clone(), Integer::new_box(1))
+    }
+}
+
+impl ToPrimitive for Integer {
+    fn to_i64(&self) -> Option<i64> {
+        Some(self.value.try_into().unwrap())
+    }
+
+    fn to_u64(&self) -> Option<u64> {
+        Some(self.value.try_into().unwrap())
+    }
+}
+
+impl ToPrimitive for &Integer {
+    fn to_i64(&self) -> Option<i64> {
+        (*self).to_i64()
+    }
+
+    fn to_u64(&self) -> Option<u64> {
+        (*self).to_u64()
+    }
+}
+impl ExprOperations for &dyn Expr {}
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
 
     #[test]
     fn check_has() {
         let x = &Symbol::new("x");
         let y = &Symbol::new("y");
-        let expr = Eq::new(x, &(y + x));
+        let expr = Eq::new(x, (y + x).get_ref());
         assert!(expr.has(x));
         assert!(expr.has(y));
-        assert!(expr.has(&(y + x)));
+        assert!(expr.has((y + x).get_ref()));
         // For now expr.has doesn't check for commutativity
-        assert!(!expr.has(&(x + y)));
+        assert!(!expr.has((x + y).get_ref()));
         assert!(!expr.has(&Symbol::new("z")));
     }
 
@@ -377,7 +538,7 @@ mod tests {
         let expr = (x + y) * z;
         let expected = x * z + y * z;
 
-        assert!(dbg!(expr.expand()).equals(&*expected))
+        assert!((expr.expand()).equals(&*expected))
     }
     #[test]
     fn test_expand_with_first_arg_int() {
@@ -389,7 +550,7 @@ mod tests {
         let expr = i2 * &(x + y) * z;
         let expected = i2 * x * z + i2 * y * z;
 
-        assert!(dbg!(expr.expand()).equals(&*expected))
+        assert!((expr.expand()).equals(&*expected))
     }
     #[test]
     /// 2(x + y)(w + z) -> 2xw + 2xz + 2yw + 2yz
@@ -403,7 +564,83 @@ mod tests {
         let expr = i2 * &(x + y) * &(w + z);
         let expected = i2 * x * w + i2 * x * z + i2 * y * w + i2 * y * z;
 
-        assert!(dbg!(expr.expand()).equals(&*dbg!(expected)))
+        assert!((expr.expand()).equals(&*(expected)))
+    }
+
+    #[test]
+    fn test_get_coeff_trivial() {
+        assert_eq!(
+            Integer::new(1).get_coeff(),
+            (Rational::one(), Integer::new_box(1))
+        );
+    }
+    #[test]
+    fn test_get_coeff_basic() {
+        let expr = Integer::new(1).get_ref() / Integer::new(2).get_ref();
+        assert_eq!(expr.get_coeff(), (Rational::new(1, 2), Integer::new_box(1)));
+    }
+    #[test]
+    fn test_get_coeff_basic_2() {
+        let num = &Integer::new(5);
+        let denom = &Integer::new(7);
+        let expr = num.get_ref() / denom.get_ref();
+
+        assert_eq!(expr.get_coeff(), (Rational::new(5, 7), Integer::new_box(1)));
+    }
+
+    #[test]
+    fn test_get_coeff_normal() {
+        let x = &Symbol::new("x");
+        let num = &Integer::new(5);
+        let denom = &Integer::new(7);
+        let expr = x * num / denom;
+
+        assert_eq!(expr.get_coeff(), (Rational::new(5, 7), x.clone_box()));
+    }
+
+    #[test]
+    fn test_check_hashing_works() {
+        let mut set = HashSet::with_capacity(2);
+        let x = &Symbol::new_box("x");
+        let x_bis = &Symbol::new_box("x");
+
+        set.insert(x);
+        set.insert(x_bis);
+
+        assert_eq!(set.len(), 1)
+    }
+
+    #[test]
+    fn test_check_sqrt() {
+        let x = &Integer::new(2).sqrt();
+
+        assert_eq!(x.srepr(), "Pow(Integer(2), Rational(1, 2))")
+    }
+
+    #[test]
+    fn test_get_sqrt_exponent() {
+        let sqrt_2 = &Integer::new(2).sqrt();
+
+        assert_eq!(
+            sqrt_2.get_exponent(),
+            (Integer::new_box(2), Rational::new_box(1, 2))
+        )
+    }
+
+    #[test]
+    fn test_check_sqrt_simplifies() {
+        let x = &Integer::new(2).sqrt();
+
+        let expr = x * x;
+
+        assert_eq!(&expr, &Integer::new_box(2))
+    }
+
+    #[test]
+    fn test_check_coeff_sqrt_2() {
+        let sqrt_2 = &Integer::new(2).sqrt();
+
+        assert_eq!(sqrt_2.get_coeff(), (Rational::one(), sqrt_2.clone_box()))
     }
 }
 
@@ -447,6 +684,18 @@ impl std::cmp::PartialEq for &dyn Expr {
     }
 }
 
+impl std::cmp::PartialEq<Box<dyn Expr>> for &dyn Expr {
+    fn eq(&self, other: &Box<dyn Expr>) -> bool {
+        *self == &**other
+    }
+}
+
+impl fmt::Debug for &dyn Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.srepr())
+    }
+}
+
 impl std::cmp::Eq for &dyn Expr {}
 // impl<E: Expr> Expr for ExprWrapper<'_, E> {
 //     fn args(&self) -> Vec<Box<dyn Arg>> {
@@ -476,7 +725,7 @@ impl std::cmp::Eq for &dyn Expr {}
 //     }
 // }
 
-pub trait ExprOperations<T> {
+pub trait ExprOperations {
     fn subs_refs<'a, Iter: IntoIterator<Item = [&'a dyn Expr; 2]>>(
         &self,
         substitutions: Iter,
@@ -527,7 +776,7 @@ pub trait ExprOperations<T> {
     //     }
 }
 
-impl<T> ExprOperations<T> for T where T: Expr {}
+impl<T> ExprOperations for T where T: Expr {}
 // impl ExprOperations<&dyn Expr> for &dyn Expr {}
 
 impl fmt::Display for &dyn Expr {
@@ -583,21 +832,5 @@ impl std::ops::Neg for Box<dyn Expr> {
 
     fn neg(self) -> Self::Output {
         -&*self
-    }
-}
-
-impl std::ops::Div for Box<dyn Expr> {
-    type Output = Box<dyn Expr>;
-
-    fn div(self, rhs: Box<dyn Expr>) -> Self::Output {
-        self * rhs.ipow(-1)
-    }
-}
-
-impl std::ops::Div<&Box<dyn Expr>> for Box<dyn Expr> {
-    type Output = Box<dyn Expr>;
-
-    fn div(self, rhs: &Box<dyn Expr>) -> Self::Output {
-        self * rhs.ipow(-1)
     }
 }

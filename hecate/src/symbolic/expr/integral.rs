@@ -11,6 +11,9 @@ impl Integral {
 }
 
 impl Expr for Integral {
+    fn get_ref<'a>(&'a self) -> &'a dyn Expr {
+        self as &dyn Expr
+    }
     fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ()) {
         f(&*self.f);
     }
