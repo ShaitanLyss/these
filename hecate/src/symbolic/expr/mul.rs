@@ -244,7 +244,7 @@ impl std::ops::Mul for &dyn Expr {
             let entry = operands_exponents
                 .entry(expr)
                 .or_insert(Integer::zero_box());
-            *entry += (exponent);
+            *entry += exponent;
         }
         let mut new_operands = Vec::with_capacity(operands_exponents.len());
 

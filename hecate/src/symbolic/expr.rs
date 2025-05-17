@@ -395,12 +395,12 @@ pub trait Expr: Arg + Sync + Send {
         match KnownExpr::from_expr(self.get_ref()) {
             KnownExpr::Integer(i) => i.into(),
             KnownExpr::Pow(pow) => {
-                let (pow_coeff, pow_expr) = (pow.base().get_coeff());
+                let (pow_coeff, pow_expr) = pow.base().get_coeff();
 
                 if pow_coeff.is_one() {
                     return (Rational::one(), pow_expr.pow(&pow.exponent().clone_box()));
                 }
-                let coeff_box = ((pow_coeff).pow(&(pow.exponent()).clone_box()));
+                let coeff_box = (pow_coeff).pow(&(pow.exponent()).clone_box());
 
                 match coeff_box.known_expr() {
                     KnownExpr::Integer(i) => return (i.into(), pow_expr),

@@ -210,16 +210,16 @@ async fn main() -> Result<()> {
             println!("\nWave Equation:\n{}",eq as &dyn Expr);
 
             let system = System::new(["u"], ["f"], [eq]);
-            print!("\n{:#}\n", system);
+            print!("\n{system:#}\n");
 
             let system = system.to_first_order_in_time();
-            println!("\n{:#}", system);
+            println!("\n{system:#}");
 
             let system = system.time_discretized();
-            println!("\n{:#}", system);
+            println!("\n{system:#}");
 
             let system = system.simplified();
-            println!("\n{:#}", system);
+            println!("\n{system:#}");
 
 
 
