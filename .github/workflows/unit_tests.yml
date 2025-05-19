@@ -42,7 +42,7 @@ jobs:
 
   # Check formatting with rustfmt
   formatting:
-    name: cargo fmt
+    name: Check Formatting
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
