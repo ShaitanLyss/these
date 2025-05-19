@@ -1,3 +1,0 @@
-[submodule "hecate/llrt"]
-	path = hecate/llrt
-	url = https://github.com/awslabs/llrt.git

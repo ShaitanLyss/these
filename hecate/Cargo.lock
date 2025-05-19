@@ -939,6 +939,7 @@ checksum = "a25169bd5913a4b437588a7e3d127cd6e90127b60e0ffbd834a38f1599e016b8"
 [[package]]
 name = "llrt_buffer"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "llrt_encoding",
  "llrt_utils",
@@ -948,6 +949,7 @@ dependencies = [
 [[package]]
 name = "llrt_build"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "rustc_version",
 ]
@@ -955,6 +957,7 @@ dependencies = [
 [[package]]
 name = "llrt_console"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "llrt_logging",
  "llrt_utils",
@@ -964,6 +967,7 @@ dependencies = [
 [[package]]
 name = "llrt_context"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "llrt_build",
  "llrt_utils",
@@ -975,6 +979,7 @@ dependencies = [
 [[package]]
 name = "llrt_crypto"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1012,6 +1017,7 @@ dependencies = [
 [[package]]
 name = "llrt_encoding"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "base64-simd",
  "hex-simd",
@@ -1023,6 +1029,7 @@ dependencies = [
 [[package]]
 name = "llrt_json"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "itoa",
  "llrt_build",
@@ -1035,6 +1042,7 @@ dependencies = [
 [[package]]
 name = "llrt_logging"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "itoa",
  "llrt_context",
@@ -1049,6 +1057,7 @@ dependencies = [
 [[package]]
 name = "llrt_modules"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "llrt_console",
  "llrt_crypto",
@@ -1060,6 +1069,7 @@ dependencies = [
 [[package]]
 name = "llrt_numbers"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "itoa",
  "llrt_utils",
@@ -1071,6 +1081,7 @@ dependencies = [
 [[package]]
 name = "llrt_timers"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "llrt_context",
  "llrt_utils",
@@ -1082,6 +1093,7 @@ dependencies = [
 [[package]]
 name = "llrt_utils"
 version = "0.5.1-beta"
+source = "git+https://github.com/awslabs/llrt#881cb810f2aaa1d91c3ecc4a80d950d038ef9717"
 dependencies = [
  "llrt_build",
  "rquickjs",
