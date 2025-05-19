@@ -276,7 +276,12 @@ impl System {
     }
 
     pub fn simplify(&self) -> Self {
-        self.expand().factor()
+        self.expand().factor().with_equations(
+            self.equations
+                .iter()
+                .map(|expr| expr.simplify().as_eq().unwrap())
+                .collect(),
+        )
     }
 
     pub fn with_equations(&self, equations: Vec<Eq>) -> Self {

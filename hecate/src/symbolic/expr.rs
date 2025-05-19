@@ -52,6 +52,14 @@ pub trait Arg: Any {
     fn as_expr(&self) -> Option<Box<dyn Expr>> {
         None
     }
+
+    fn map_expr(&self, f: &dyn (Fn(&dyn Expr) -> Box<dyn Expr>)) -> Box<dyn Arg> {
+        if let Some(expr) = self.as_expr() {
+            f(expr.get_ref())
+        } else {
+            self.clone_arg()
+        }
+    }
 }
 
 pub trait ArgOperations {}
@@ -281,6 +289,15 @@ pub trait Expr: Arg + Sync + Send {
 
     fn as_f64(&self) -> Option<f64> {
         None
+    }
+
+    fn simplify(&self) -> Box<dyn Expr> {
+        self.from_args(
+            self.args()
+                .iter()
+                .map(|a| a.map_expr(&|e| e.simplify()))
+                .collect(),
+        )
     }
 
     fn as_int(&self) -> Option<Integer> {

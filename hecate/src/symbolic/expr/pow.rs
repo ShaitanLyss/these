@@ -34,8 +34,9 @@ impl Expr for Pow {
     }
 
     fn str(&self) -> String {
-        match KnownExpr::from_expr_box(&self.exponent) {
-            KnownExpr::Integer(Integer { value: -1 }) => format!("1 / {}", self.base.str()),
+        match (self.base.known_expr(), KnownExpr::from_expr_box(&self.exponent)) {
+            (KnownExpr::Rational(r), _) => format!("({})^{}", r.str(), self.exponent.str()),
+            (_, KnownExpr::Integer(Integer { value: -1 })) => format!("1 / {}", self.base.str()),
 
             _ => format!("{}^{}", self.base.str(), self.exponent.str()),
         }
@@ -47,6 +48,39 @@ impl Expr for Pow {
 
     fn is_one(&self) -> bool {
         self.exponent.is_neg_one() && self.base.is_one() || self.exponent.is_zero()
+    }
+
+    fn simplify(&self) -> Box<dyn Expr> {
+        let Pow { base, exponent } = self;
+
+        if exponent.is_one() {
+            if let Some(pow) = base.as_pow() {
+                pow.simplify()
+            } else {
+                base.simplify()
+            }
+        } else if exponent.is_zero() {
+            Integer::one_box()
+        } else if base.is_one() {
+            Integer::one_box()
+        } else if let Some(pow) = base.as_pow() {
+            let base = pow.base.clone_box();
+            let exponent = &pow.exponent * exponent;
+            Pow::pow(base, exponent)
+        } else {
+            match (base.known_expr(), exponent.known_expr()) {
+                (
+                    KnownExpr::Rational(Rational { num, denom }),
+                    KnownExpr::Integer(Integer { value }),
+                ) if *value > 0 => Rational::new_box(num.pow(*value as u32), denom.pow(*value as u32)),
+                (
+                    KnownExpr::Integer(Integer { value: n }),
+                    KnownExpr::Integer(Integer { value: e }),
+                ) if *e > 0 => Integer::new_box(n.pow(*e as u32)),
+                _ => self.clone_box(),
+            }
+        }
+        
     }
 }
 
@@ -69,31 +103,14 @@ impl Pow {
         &*self.exponent
     }
 
-    pub fn simplify(&self) -> Box<dyn Expr> {
-        let Pow { base, exponent } = self;
-
-        if exponent.is_one() {
-            if let Some(pow) = base.as_pow() {
-                pow.simplify()
-            } else {
-                base.clone_box()
-            }
-        } else if exponent.is_zero() {
-            Integer::one_box()
-        } else if base.is_one() {
-            Integer::one_box()
-        } else if let Some(pow) = base.as_pow() {
-            let base = pow.base.clone_box();
-            let exponent = &pow.exponent * exponent;
-            Pow::pow(base, exponent)
-        } else {
-            self.clone_box()
-        }
-    }
 
     pub fn pow(mut base: Box<dyn Expr>, mut exponent: Box<dyn Expr>) -> Box<dyn Expr> {
-        match KnownExpr::from_expr(base.clone_box().get_ref()) {
-            KnownExpr::Rational(r) => {
+        match (base.clone().known_expr(), exponent.known_expr()) {
+            (KnownExpr::Rational(r), KnownExpr::Integer(i)) if i.value > 0 => {
+                return Rational::new_box(r.num.pow(i.value as u32), r.denom.pow(i.value as u32))
+
+            }
+            (KnownExpr::Rational(r), _) => {
                 let mut r = r.clone();
                 if exponent.is_negative_number() {
                     r.invert();
@@ -105,10 +122,10 @@ impl Pow {
                 }
                 base = r.simplify().clone_box();
             }
-            KnownExpr::Pow(Pow {
+            (KnownExpr::Pow(Pow {
                 base: base_base,
                 exponent: base_exponent,
-            }) => {
+            }), _) => {
                 base = base_base.clone_box();
                 exponent = base_exponent.get_ref() * exponent.get_ref();
             }
@@ -189,5 +206,10 @@ mod tests {
             }
             .get_ref()
         )
+    }
+
+    #[test]
+    fn test_simplify_rational_pow() {
+        assert_eq!(Rational::new(2, 3).ipow(2), Rational::new_box(4, 9))
     }
 }

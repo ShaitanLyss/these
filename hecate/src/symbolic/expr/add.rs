@@ -76,13 +76,37 @@ impl Expr for Add {
                     }
                 }
 
-                KnownExpr::Integer(integer) if integer.value < 0 => format!(" - {}", op.str()[1..].to_string()), 
+                KnownExpr::Integer(integer) if integer.value < 0 => {
+                    format!(" - {}", op.str()[1..].to_string())
+                }
 
                 _ if i > 0 => format!(" + {}", op.str()),
                 _ => op.str(),
             })
             .collect();
         format!("{}", pieces.join(""))
+    }
+
+    fn simplify(&self) -> Box<dyn Expr> {
+        if self.operands.len() == 2 {
+            match (self.operands[0].known_expr(), self.operands[1].known_expr()) {
+                (KnownExpr::Integer(a), KnownExpr::Integer(b)) => return Integer::new_box(a.value + b.value),
+                (KnownExpr::Rational(r1), KnownExpr::Rational(r2)) => return Box::new(r1 + r2),
+                (KnownExpr::Integer(a), KnownExpr::Rational(r2)) => return a + r2,
+                (KnownExpr::Rational(r1), KnownExpr::Integer(b)) => return r1 + b,
+                _ => ()
+            }
+        }
+        return self.from_args(
+            self.args()
+                .iter()
+                .map(|a| a.map_expr(&|e| e.simplify()))
+                .collect(),
+        );
+        // For some reason the code below isn't equivalent
+        // self.from_args(self.args_map_exprs(&|expr| match expr.known_expr() {
+        //     _ => expr.simplify(),
+        // }))
     }
 
     fn expand(&self) -> Box<dyn Expr> {
@@ -313,7 +337,7 @@ impl std::ops::Add<isize> for Box<dyn Expr> {
     type Output = Box<dyn Expr>;
 
     fn add(self, rhs: isize) -> Self::Output {
-         &*self + Integer::new_box(rhs)
+        &*self + Integer::new_box(rhs)
     }
 }
 

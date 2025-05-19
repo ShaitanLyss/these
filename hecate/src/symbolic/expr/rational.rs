@@ -56,6 +56,18 @@ impl Expr for Rational {
     fn as_f64(&self) -> Option<f64> {
         Some(self.num.to_f64().unwrap() / self.denom.to_f64().unwrap())
     }
+    fn simplify(&self) -> Box<dyn Expr> {
+        let mut res = self.clone();
+        if self.num < 0 && self.denom < 0 {
+            res.num *= -1;
+            res.denom *= -1;
+        }
+        if self.num % self.denom == 0 {
+            Integer::new_box(self.num / self.denom)
+        } else {
+            Box::new(res)
+        }
+    }
 }
 
 impl Rational {
@@ -76,19 +88,6 @@ impl Rational {
 
     pub fn invert(&mut self) {
         std::mem::swap(&mut self.num, &mut self.denom);
-    }
-
-    pub fn simplify(&self) -> Box<dyn Expr> {
-        let mut res = self.clone();
-        if self.num < 0 && self.denom < 0 {
-            res.num *= -1;
-            res.denom *= -1;
-        }
-        if self.num % self.denom == 0 {
-            Integer::new_box(self.num / self.denom)
-        } else {
-            Box::new(res)
-        }
     }
 }
 
@@ -153,7 +152,6 @@ impl std::cmp::Eq for Rational {}
 //     }
 // }
 
-
 impl<T: Copy + Into<Rational>> PartialOrd<T> for Rational {
     fn partial_cmp(&self, other: &T) -> Option<std::cmp::Ordering> {
         let a: f64 = self.into();
@@ -213,6 +211,23 @@ impl std::ops::AddAssign for Rational {
         self.num = res.num;
         self.denom = res.denom;
     }
+}
+
+impl std::ops::Add<&Integer> for &Rational {
+    type Output = Box<dyn Expr>;
+
+    fn add(self, rhs: &Integer) -> Self::Output {
+        Rational::new_box(self.num + rhs.value * self.denom, self.denom).simplify()
+    }
+}
+
+impl std::ops::Add<&Rational> for &Integer {
+    type Output = Box<dyn Expr>;
+
+    fn add(self, rhs: &Rational) -> Self::Output {
+        Rational::new_box(self.value * rhs.denom + rhs.num, rhs.denom).simplify()
+    }
+    
 }
 
 impl std::ops::Neg for &Rational {
@@ -276,9 +291,6 @@ impl From<&str> for Rational {
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
-
-    use crate::rationals;
 
     use super::*;
 

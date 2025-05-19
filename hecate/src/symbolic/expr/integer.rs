@@ -5,6 +5,14 @@ pub struct Integer {
     pub value: isize,
 }
 
+// impl Par
+//
+// impl PartialOrd<i32> for &Integer {
+//     fn partial_cmp(&self, other: &i32) -> Option<Ordering> {
+//         todo!()
+//     }
+// }
+ 
 impl Expr for Integer {
     fn get_ref<'a>(&'a self) -> &'a dyn Expr {
         self as &dyn Expr
