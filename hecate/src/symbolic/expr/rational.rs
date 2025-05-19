@@ -227,7 +227,6 @@ impl std::ops::Add<&Rational> for &Integer {
     fn add(self, rhs: &Rational) -> Self::Output {
         Rational::new_box(self.value * rhs.denom + rhs.num, rhs.denom).simplify()
     }
-    
 }
 
 impl std::ops::Neg for &Rational {

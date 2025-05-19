@@ -23,7 +23,6 @@ where
     let mut factor_coeffs: HashMap<&F, Box<dyn Expr>> = HashMap::new();
     let mut others: Vec<Box<dyn Expr>> = Vec::new();
 
-
     let operands = match expr.known_expr() {
         KnownExpr::Add(Add { operands }) => operands.iter().collect(),
         _ => vec![&expr],
@@ -42,7 +41,8 @@ where
         others.push(op.clone_box());
     }
 
-    let mut res_operands: Vec<Box<dyn Expr>> = Vec::with_capacity(factor_coeffs.len() + others.len());
+    let mut res_operands: Vec<Box<dyn Expr>> =
+        Vec::with_capacity(factor_coeffs.len() + others.len());
 
     for fact in factors {
         if let Some(coeff) = factor_coeffs.get(fact) {
@@ -50,7 +50,6 @@ where
                 res_operands.push(factor(coeff.get_ref(), factors) * fact.get_ref());
             }
         }
-
     }
     res_operands.extend(others);
 

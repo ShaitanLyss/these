@@ -44,7 +44,6 @@ impl Func {
             name,
             args: self.args.clone(),
         }
-
     }
 }
 

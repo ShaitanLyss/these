@@ -12,7 +12,7 @@ pub struct Integer {
 //         todo!()
 //     }
 // }
- 
+
 impl Expr for Integer {
     fn get_ref<'a>(&'a self) -> &'a dyn Expr {
         self as &dyn Expr
@@ -80,7 +80,7 @@ impl ToInteger for Integer {
 
 impl ToInteger for &Integer {
     fn to_integer(&self) -> Integer {
-        ( **self).clone()
+        (**self).clone()
     }
 }
 

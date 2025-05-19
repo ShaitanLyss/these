@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 
-use crate::{symbolic::Expr, KnownExpr, Rational};
-
+use crate::{KnownExpr, Rational, symbolic::Expr};
 
 pub fn compare<A: Expr + ?Sized, B: Expr + ?Sized>(a: &A, b: &B) -> Option<Ordering> {
     if a.get_ref() == b.get_ref() {
@@ -19,15 +18,14 @@ pub fn compare<A: Expr + ?Sized, B: Expr + ?Sized>(a: &A, b: &B) -> Option<Order
             let r2: Rational = i2.into();
             Some(r1.cmp(&r2))
         }
-        _ => None
+        _ => None,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
     use super::*;
-
+    use crate::*;
 
     #[test]
     fn test_compare() {
@@ -72,6 +70,3 @@ mod tests {
         assert_eq!(compare(y, x), None);
     }
 }
-
-
-

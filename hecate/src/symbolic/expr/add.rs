@@ -90,11 +90,13 @@ impl Expr for Add {
     fn simplify(&self) -> Box<dyn Expr> {
         if self.operands.len() == 2 {
             match (self.operands[0].known_expr(), self.operands[1].known_expr()) {
-                (KnownExpr::Integer(a), KnownExpr::Integer(b)) => return Integer::new_box(a.value + b.value),
+                (KnownExpr::Integer(a), KnownExpr::Integer(b)) => {
+                    return Integer::new_box(a.value + b.value);
+                }
                 (KnownExpr::Rational(r1), KnownExpr::Rational(r2)) => return Box::new(r1 + r2),
                 (KnownExpr::Integer(a), KnownExpr::Rational(r2)) => return a + r2,
                 (KnownExpr::Rational(r1), KnownExpr::Integer(b)) => return r1 + b,
-                _ => ()
+                _ => (),
             }
         }
         return self.from_args(

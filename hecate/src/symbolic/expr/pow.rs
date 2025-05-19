@@ -34,7 +34,10 @@ impl Expr for Pow {
     }
 
     fn str(&self) -> String {
-        match (self.base.known_expr(), KnownExpr::from_expr_box(&self.exponent)) {
+        match (
+            self.base.known_expr(),
+            KnownExpr::from_expr_box(&self.exponent),
+        ) {
             (KnownExpr::Rational(r), _) => format!("({})^{}", r.str(), self.exponent.str()),
             (_, KnownExpr::Integer(Integer { value: -1 })) => format!("1 / {}", self.base.str()),
 
@@ -72,7 +75,9 @@ impl Expr for Pow {
                 (
                     KnownExpr::Rational(Rational { num, denom }),
                     KnownExpr::Integer(Integer { value }),
-                ) if *value > 0 => Rational::new_box(num.pow(*value as u32), denom.pow(*value as u32)),
+                ) if *value > 0 => {
+                    Rational::new_box(num.pow(*value as u32), denom.pow(*value as u32))
+                }
                 (
                     KnownExpr::Integer(Integer { value: n }),
                     KnownExpr::Integer(Integer { value: e }),
@@ -80,7 +85,6 @@ impl Expr for Pow {
                 _ => self.clone_box(),
             }
         }
-        
     }
 }
 
@@ -103,12 +107,10 @@ impl Pow {
         &*self.exponent
     }
 
-
     pub fn pow(mut base: Box<dyn Expr>, mut exponent: Box<dyn Expr>) -> Box<dyn Expr> {
         match (base.clone().known_expr(), exponent.known_expr()) {
             (KnownExpr::Rational(r), KnownExpr::Integer(i)) if i.value > 0 => {
-                return Rational::new_box(r.num.pow(i.value as u32), r.denom.pow(i.value as u32))
-
+                return Rational::new_box(r.num.pow(i.value as u32), r.denom.pow(i.value as u32));
             }
             (KnownExpr::Rational(r), _) => {
                 let mut r = r.clone();
@@ -122,10 +124,13 @@ impl Pow {
                 }
                 base = r.simplify().clone_box();
             }
-            (KnownExpr::Pow(Pow {
-                base: base_base,
-                exponent: base_exponent,
-            }), _) => {
+            (
+                KnownExpr::Pow(Pow {
+                    base: base_base,
+                    exponent: base_exponent,
+                }),
+                _,
+            ) => {
                 base = base_base.clone_box();
                 exponent = base_exponent.get_ref() * exponent.get_ref();
             }
