@@ -10,6 +10,10 @@ impl Expr for Pow {
     fn known_expr(&self) -> KnownExpr {
         KnownExpr::Pow(self)
     }
+
+    fn as_pow(&self) -> Option<&Pow> {
+        Some(self)
+    }
     fn get_ref<'a>(&'a self) -> &'a dyn Expr {
         self as &dyn Expr
     }
@@ -65,6 +69,28 @@ impl Pow {
         &*self.exponent
     }
 
+    pub fn simplify(&self) -> Box<dyn Expr> {
+        let Pow { base, exponent } = self;
+
+        if exponent.is_one() {
+            if let Some(pow) = base.as_pow() {
+                pow.simplify()
+            } else {
+                base.clone_box()
+            }
+        } else if exponent.is_zero() {
+            Integer::one_box()
+        } else if base.is_one() {
+            Integer::one_box()
+        } else if let Some(pow) = base.as_pow() {
+            let base = pow.base.clone_box();
+            let exponent = &pow.exponent * exponent;
+            Pow::pow(base, exponent)
+        } else {
+            self.clone_box()
+        }
+    }
+
     pub fn pow(mut base: Box<dyn Expr>, mut exponent: Box<dyn Expr>) -> Box<dyn Expr> {
         match KnownExpr::from_expr(base.clone_box().get_ref()) {
             KnownExpr::Rational(r) => {
@@ -108,6 +134,12 @@ impl Pow {
     }
 }
 
+impl fmt::Debug for Pow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.get_ref())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -139,6 +171,23 @@ mod tests {
         assert_eq!(
             (Integer::new_box(2).sqrt() * Integer::new_box(3).sqrt()).srepr(),
             "Pow(Integer(6), Rational(1, 2))"
+        )
+    }
+
+    #[test]
+    fn test_simplify_pow() {
+        assert_eq!(
+            Pow {
+                base: Pow::new_box(Symbol::new_box("x"), Integer::new_box(2)),
+                exponent: Integer::new_box(3)
+            }
+            .simplify()
+            .get_ref(),
+            Pow {
+                base: Symbol::new_box("x"),
+                exponent: Integer::new_box(6)
+            }
+            .get_ref()
         )
     }
 }

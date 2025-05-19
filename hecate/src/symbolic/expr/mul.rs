@@ -14,6 +14,10 @@ impl Expr for Mul {
     fn get_ref<'a>(&'a self) -> &'a dyn Expr {
         self as &dyn Expr
     }
+
+    fn as_mul(&self) -> Option<&Mul> {
+        Some(self)
+    }
     fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ()) {
         self.operands.iter().for_each(|e| f(&**e));
     }
@@ -147,6 +151,22 @@ impl std::ops::Mul<&Box<dyn Expr>> for Box<dyn Expr> {
     }
 }
 
+impl std::ops::Mul<&dyn Expr> for &Box<dyn Expr> {
+    type Output = Box<dyn Expr>;
+
+    fn mul(self, rhs: &dyn Expr) -> Self::Output {
+        &**self * rhs
+    }
+}
+
+impl std::ops::Mul<isize> for Box<dyn Expr> {
+    type Output = Box<dyn Expr>;
+
+    fn mul(self, rhs: isize) -> Self::Output {
+        Integer::new_box(rhs) * &*self
+    }
+}
+
 impl std::ops::Add for Mul {
     type Output = Add;
 
@@ -249,7 +269,20 @@ impl std::ops::Mul for &dyn Expr {
 
         let mut operands_exponents: IndexMap<Box<dyn Expr>, Box<dyn Expr>> = IndexMap::new();
 
-        for op in new_operands {
+        for op in new_operands
+            .iter()
+            // Split up factors fo multiplication and powers
+            .flat_map(|op| match op.known_expr() {
+                KnownExpr::Mul(Mul { operands }) => operands.clone(),
+                KnownExpr::Pow(Pow { base, exponent })
+                    if matches!(base.known_expr(), KnownExpr::Mul(Mul { .. })) =>
+                {
+                    let mul = base.as_mul().unwrap();
+                    mul.operands.iter().map(|op| op.pow(exponent)).collect()
+                }
+                _ => vec![op.clone_box()],
+            })
+        {
             let (expr, exponent) = op.get_exponent();
             let entry = operands_exponents
                 .entry(expr)
@@ -342,6 +375,7 @@ impl std::ops::DivAssign<&dyn Expr> for Box<dyn Expr> {
 
 #[cfg(test)]
 mod tests {
+    use crate::symbols;
 
     use super::*;
 
@@ -393,5 +427,12 @@ mod tests {
             expr.srepr(),
             "Mul(Add(Symbol(a), Mul(Integer(-1), Symbol(b))), Pow(Symbol(c), Integer(-1)))"
         );
+    }
+
+    #[test]
+    fn test_div_of_product_simplifies() {
+        let [a, b, c] = symbols!("a", "b", "c");
+
+        assert_eq!(&(a * b / (a * c)), &(b / c));
     }
 }

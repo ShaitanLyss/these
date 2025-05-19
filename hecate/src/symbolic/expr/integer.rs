@@ -64,6 +64,18 @@ impl Expr for Integer {
     }
 }
 
+impl ToInteger for Integer {
+    fn to_integer(&self) -> Integer {
+        self.clone()
+    }
+}
+
+impl ToInteger for &Integer {
+    fn to_integer(&self) -> Integer {
+        ( **self).clone()
+    }
+}
+
 impl Integer {
     pub fn new_box(value: isize) -> Box<dyn Expr> {
         Box::new(Integer { value })

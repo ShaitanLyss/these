@@ -3,6 +3,7 @@
 #![allow(non_snake_case)]
 
 pub mod symbolic;
+pub use symbolic::*;
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 

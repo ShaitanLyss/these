@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub struct Rational {
     pub num: isize,
     pub denom: isize,
@@ -103,10 +103,14 @@ impl std::fmt::Debug for Rational {
     }
 }
 
-impl<N: ToPrimitive> From<N> for Rational {
+pub trait ToInteger {
+    fn to_integer(&self) -> Integer;
+}
+
+impl<N: ToInteger> From<N> for Rational {
     fn from(value: N) -> Self {
         Rational {
-            num: value.to_isize().unwrap(),
+            num: value.to_integer().value,
             denom: 1,
         }
     }
@@ -120,6 +124,49 @@ impl<I: ToPrimitive> std::ops::Mul<I> for Rational {
             num: self.num * rhs.to_isize().unwrap(),
             denom: self.denom,
         }
+    }
+}
+
+// impl<T> PartialEq<T> for Rational where &T: Into<Rational> {}
+
+impl<T: Copy + Into<Rational>> PartialEq<T> for Rational {
+    fn eq(&self, other: &T) -> bool {
+        let other: Rational = (*other).into();
+        self.num * other.denom == self.denom * other.num
+    }
+}
+
+
+impl std::cmp::Eq for Rational {}
+
+
+impl<T: Copy + Into<Rational>> PartialOrd<T> for Rational {
+    fn partial_cmp(&self, other: &T) -> Option<std::cmp::Ordering> {
+        let a: f64 = self.into();
+        let b: Rational = (*other).into();
+        let b: f64 = b.into();
+
+        a.partial_cmp(&b)
+    }
+}
+
+impl Ord for Rational {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let a: f64 = self.into();
+        let b: f64 = other.into();
+        a.partial_cmp(&b).unwrap()
+    }
+}
+
+impl From<&Rational> for f64 {
+    fn from(Rational { num, denom }: &Rational) -> Self {
+        *num as f64 / *denom as f64
+    }
+}
+
+impl From<Rational> for f64 {
+    fn from(Rational { num, denom }: Rational) -> Self {
+        num as f64 / denom as f64
     }
 }
 
@@ -203,8 +250,22 @@ impl std::ops::DivAssign for Rational {
     }
 }
 
+impl From<&str> for Rational {
+    fn from(value: &str) -> Self {
+        let (num, denom) = value.split_once('/').unwrap();
+        Rational {
+            num: num.parse().unwrap(),
+            denom: denom.parse().unwrap(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use itertools::Itertools;
+
+    use crate::rationals;
+
     use super::*;
 
     #[test]
@@ -236,5 +297,12 @@ mod tests {
             Rational::new(3, 4) + Rational::new(2, 5),
             Rational::new(23, 20)
         )
+    }
+
+    #[test]
+    fn test_ord() {
+        let [a, b] = [Rational::from("1/2"), Rational::from("1/3")];
+
+        assert!(a > b)
     }
 }

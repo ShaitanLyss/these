@@ -1,6 +1,8 @@
 use super::*;
 use num_traits::ToPrimitive;
 
+pub mod macros;
+
 pub mod pow;
 pub use pow::*;
 
@@ -31,11 +33,11 @@ pub use integer::*;
 pub mod rational;
 pub use rational::*;
 
+pub mod ops;
+// pub use ops::*;
+
 use std::{
-    any::Any,
-    cmp::PartialEq,
-    fmt::{self},
-    iter,
+    any::Any, cmp::{Ordering, PartialEq}, fmt::{self}, hash::Hash, iter
 };
 
 pub trait Arg: Any {
@@ -265,6 +267,14 @@ pub trait Expr: Arg + Sync + Send {
         }
     }
 
+    fn as_mul(&self) -> Option<&Mul> {
+        None
+    }
+
+    fn as_pow(&self) -> Option<&Pow> {
+        None
+    }
+
     fn as_f64(&self) -> Option<f64> {
         None
     }
@@ -368,6 +378,19 @@ pub trait Expr: Arg + Sync + Send {
                 })
                 .collect(),
         )
+    }
+
+    /// Factorizes an expression
+    /// For example:
+    /// factor(ax + cx + zy, [x]) -> (a + c)x + zy
+    fn factor(&self, factors: &[&dyn Expr]) -> Box<dyn Expr> {
+        // ops::factor(self.get_ref(), factors)
+        // ops::factor(self.clone_box(), factors.clone())
+        if let KnownExpr::Add(Add { operands }) = self.known_expr() {
+            todo!()
+        } else {
+            self.clone_box()
+        }
     }
 
     fn is_one(&self) -> bool {
@@ -476,6 +499,10 @@ pub trait Expr: Arg + Sync + Send {
             }
             _ => (Rational::one(), self.clone_box()),
         }
+    }
+
+    fn compare(&self, other: &dyn Expr) -> Option<Ordering> {
+        ops::compare(self, other)
     }
 }
 
@@ -700,11 +727,17 @@ impl std::cmp::PartialEq<Box<dyn Expr>> for &dyn Expr {
 
 impl fmt::Debug for &dyn Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.srepr())
+        write!(f, "{} [{}])", self.str(), self.srepr())
     }
 }
 
 impl std::cmp::Eq for &dyn Expr {}
+
+impl Hash for &dyn Expr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.srepr().hash(state);
+    }
+}
 // impl<E: Expr> Expr for ExprWrapper<'_, E> {
 //     fn args(&self) -> Vec<Box<dyn Arg>> {
 //         todo!()
@@ -803,7 +836,7 @@ impl std::cmp::Eq for Box<dyn Expr> {}
 
 impl std::fmt::Debug for Box<dyn Expr> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.srepr())
+        write!(f, "{:?}", self.get_ref())
     }
 }
 

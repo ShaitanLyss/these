@@ -14,6 +14,16 @@ impl Add {
         })
     }
 
+    pub fn new_box_v2(operands: Vec<Box<dyn Expr>>) -> Box<dyn Expr> {
+        if operands.len() == 0 {
+            Integer::new_box(0)
+        } else if operands.len() == 1 {
+            operands[0].clone_box()
+        } else {
+            Box::new(Add { operands })
+        }
+    }
+
     pub fn new<'a, Ops: IntoIterator<Item = &'a dyn Expr>>(operands: Ops) -> Self {
         Add {
             operands: operands.into_iter().map(|e| e.clone_box()).collect(),
@@ -203,6 +213,14 @@ impl std::ops::Add for &Box<dyn Expr> {
     }
 }
 
+impl std::ops::Add<Box<dyn Expr>> for &dyn Expr {
+    type Output = Box<dyn Expr>;
+
+    fn add(self, rhs: Box<dyn Expr>) -> Self::Output {
+        self + &*rhs
+    }
+}
+
 impl std::ops::Add for Box<dyn Expr> {
     type Output = Box<dyn Expr>;
 
@@ -272,6 +290,22 @@ impl std::ops::Sub for Box<dyn Expr> {
 impl std::ops::SubAssign<&dyn Expr> for Box<dyn Expr> {
     fn sub_assign(&mut self, rhs: &dyn Expr) {
         *self = &**self - rhs;
+    }
+}
+
+impl std::ops::Add<&dyn Expr> for Box<dyn Expr> {
+    type Output = Box<dyn Expr>;
+
+    fn add(self, rhs: &dyn Expr) -> Self::Output {
+        &*self + rhs
+    }
+}
+
+impl std::ops::Add<isize> for Box<dyn Expr> {
+    type Output = Box<dyn Expr>;
+
+    fn add(self, rhs: isize) -> Self::Output {
+         &*self + Integer::new_box(rhs)
     }
 }
 

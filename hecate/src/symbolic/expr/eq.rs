@@ -29,6 +29,10 @@ impl Eq {
             rhs: rhs.clone_box(),
         }
     }
+
+    pub fn new_box(lhs: Box<dyn Expr>, rhs: Box<dyn Expr>) -> Box<dyn Expr> {
+        Box::new(Eq { lhs, rhs })
+    }
 }
 
 impl Expr for Eq {
