@@ -10,6 +10,7 @@ impl Symbol {
             name: (match name {
                 "nabla" => "∇",
                 "laplacian" => "Δ",
+                "theta" => "θ",
                 _ => name,
             })
             .to_string(),

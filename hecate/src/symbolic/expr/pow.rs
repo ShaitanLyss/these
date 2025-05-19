@@ -35,7 +35,7 @@ impl Expr for Pow {
 
     fn str(&self) -> String {
         match KnownExpr::from_expr_box(&self.exponent) {
-            KnownExpr::Integer(Integer { value: -1 }) => format!(" / {}", self.base.str()),
+            KnownExpr::Integer(Integer { value: -1 }) => format!("1 / {}", self.base.str()),
 
             _ => format!("{}^{}", self.base.str(), self.exponent.str()),
         }

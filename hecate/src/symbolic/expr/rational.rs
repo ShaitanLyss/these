@@ -107,6 +107,12 @@ pub trait ToInteger {
     fn to_integer(&self) -> Integer;
 }
 
+impl ToInteger for i32 {
+    fn to_integer(&self) -> Integer {
+        Integer::new(*self as isize)
+    }
+}
+
 impl<N: ToInteger> From<N> for Rational {
     fn from(value: N) -> Self {
         Rational {
@@ -136,8 +142,16 @@ impl<T: Copy + Into<Rational>> PartialEq<T> for Rational {
     }
 }
 
-
 impl std::cmp::Eq for Rational {}
+
+// impl From<isize> for Rational {
+//     fn from(value: isize) -> Self {
+//         Rational {
+//             num: value,
+//             denom: 1,
+//         }
+//     }
+// }
 
 
 impl<T: Copy + Into<Rational>> PartialOrd<T> for Rational {

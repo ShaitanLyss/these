@@ -44,10 +44,10 @@ where
 
     let mut res_operands: Vec<Box<dyn Expr>> = Vec::with_capacity(factor_coeffs.len() + others.len());
 
-    for factor in factors {
-        if let Some(coeff) = factor_coeffs.get(factor) {
+    for fact in factors {
+        if let Some(coeff) = factor_coeffs.get(fact) {
             if !coeff.is_zero() {
-                res_operands.push(coeff * factor.get_ref());
+                res_operands.push(factor(coeff.get_ref(), factors) * fact.get_ref());
             }
         }
 

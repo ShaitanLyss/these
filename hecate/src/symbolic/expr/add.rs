@@ -66,9 +66,17 @@ impl Expr for Add {
                             let mul = op.str();
                             format!(" - {}", mul[1..].to_string())
                         }
+                        // KnownExpr::Rational(r) if *r < 0 => {
+                        //     let mul = op.str();
+                        //     let len = mul.len();
+                        //     format!(" - {}", mul[if len > 1 { 2} else {0}..if len > 1 { -1} else {}].to_string())
+                        //
+                        // }
                         _ => format!(" + {}", op.str()),
                     }
                 }
+
+                KnownExpr::Integer(integer) if integer.value < 0 => format!(" - {}", op.str()[1..].to_string()), 
 
                 _ if i > 0 => format!(" + {}", op.str()),
                 _ => op.str(),

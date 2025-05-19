@@ -37,7 +37,11 @@ pub mod ops;
 // pub use ops::*;
 
 use std::{
-    any::Any, cmp::{Ordering, PartialEq}, fmt::{self}, hash::Hash, iter
+    any::Any,
+    cmp::{Ordering, PartialEq},
+    fmt::{self},
+    hash::Hash,
+    iter,
 };
 
 pub trait Arg: Any {
@@ -326,25 +330,8 @@ pub trait Expr: Arg + Sync + Send {
             .to_string()
     }
 
-    fn subs(&self, substitutions: &Vec<[Box<dyn Expr>; 2]>) -> Box<dyn Expr> {
-        for [replaced, replacement] in substitutions {
-            if self.srepr() == replaced.srepr() {
-                return replacement.clone_box();
-            }
-        }
-
-        self.from_args(
-            self.args()
-                .iter()
-                .map(|arg| {
-                    if let Some(expr) = arg.as_expr() {
-                        expr.subs(&substitutions).into()
-                    } else {
-                        arg.clone()
-                    }
-                })
-                .collect(),
-        )
+    fn subs(&self, substitutions: &[[Box<dyn Expr>; 2]]) -> Box<dyn Expr> {
+        ops::subs(self, substitutions)
     }
 
     fn has(&self, expr: &dyn Expr) -> bool {
@@ -384,13 +371,7 @@ pub trait Expr: Arg + Sync + Send {
     /// For example:
     /// factor(ax + cx + zy, [x]) -> (a + c)x + zy
     fn factor(&self, factors: &[&dyn Expr]) -> Box<dyn Expr> {
-        // ops::factor(self.get_ref(), factors)
-        // ops::factor(self.clone_box(), factors.clone())
-        if let KnownExpr::Add(Add { operands }) = self.known_expr() {
-            todo!()
-        } else {
-            self.clone_box()
-        }
+        ops::factor(self, factors)
     }
 
     fn is_one(&self) -> bool {
@@ -722,6 +703,18 @@ impl std::cmp::PartialEq for &dyn Expr {
 impl std::cmp::PartialEq<Box<dyn Expr>> for &dyn Expr {
     fn eq(&self, other: &Box<dyn Expr>) -> bool {
         *self == &**other
+    }
+}
+
+impl std::cmp::PartialEq<&dyn Expr> for Box<dyn Expr> {
+    fn eq(&self, other: &&dyn Expr) -> bool {
+        self.get_ref() == *other
+    }
+}
+
+impl std::cmp::PartialEq<&Box<dyn Expr>> for &dyn Expr {
+    fn eq(&self, other: &&Box<dyn Expr>) -> bool {
+        *self == other.get_ref()
     }
 }
 

@@ -39,6 +39,8 @@ impl Expr for Mul {
             .map(|(i, op)| match KnownExpr::from_expr_box(op) {
                 KnownExpr::Integer(Integer { value: -1 }) if i == 0 => "-".to_string(),
                 KnownExpr::Add(_) if self.operands.len() > 1 => format!("({})", op.str()),
+                KnownExpr::Pow(pow) if self.operands.len() > 1 => format!("({})", pow.str()),
+                KnownExpr::Rational(r) if self.operands.len() > 1 => format!("({})", r.str()),
                 _ => op.str(),
             })
             .collect();
@@ -347,7 +349,7 @@ impl<E: Expr> std::ops::Div<&E> for Box<dyn Expr> {
     type Output = Box<dyn Expr>;
 
     fn div(self, rhs: &E) -> Self::Output {
-        &*self / rhs
+        &*self / rhs.get_ref()
     }
 }
 

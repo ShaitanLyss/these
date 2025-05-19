@@ -31,6 +31,21 @@ impl Func {
             },
         ];
     }
+
+    pub fn to_vector(&self) -> Func {
+        let pieces: Vec<_> = self.name.split("^").collect();
+        let mut name = pieces[0].to_uppercase();
+
+        for piece in &pieces[1..] {
+            name += &format!("^{piece}");
+        }
+
+        Func {
+            name,
+            args: self.args.clone(),
+        }
+
+    }
 }
 
 impl Expr for Func {

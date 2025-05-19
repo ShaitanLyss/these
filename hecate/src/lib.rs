@@ -4,6 +4,7 @@
 
 pub mod symbolic;
 pub use symbolic::*;
+pub mod js;
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
