@@ -233,7 +233,7 @@ pub trait Expr: Arg + Sync + Send {
 
     fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ());
 
-    fn args_map_exprs(&self, f: &dyn Fn(&dyn Expr) -> Box<dyn Arg>) -> Vec<Box<dyn Arg>> {
+    fn args_map_exprs(&self, _f: &dyn Fn(&dyn Expr) -> Box<dyn Arg>) -> Vec<Box<dyn Arg>> {
         todo!("Doesn't work at the moment");
         // let mut res = Vec::new();
         //
