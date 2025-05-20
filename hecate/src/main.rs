@@ -1,7 +1,7 @@
 use std::fs;
 
 use anyhow::Result;
-use hecate::{self, codegen::input_schema::InputSchema, BuildingBlock};
+use hecate::{self, BuildingBlock, codegen::input_schema::InputSchema};
 
 use clap::{Parser, Subcommand};
 
@@ -19,7 +19,9 @@ enum Commands {
     #[command(name = "bblock")]
     BuildingBlock,
     #[command(name = "schema")]
-    ParseInputSchema { schema_file: String},
+    ParseInputSchema {
+        schema_file: String,
+    },
     Test,
     Matrixify,
 }
@@ -29,7 +31,7 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     match &args.command {
-        Commands::ParseInputSchema { schema_file} => {
+        Commands::ParseInputSchema { schema_file } => {
             let s = fs::read_to_string(&schema_file)?;
             let schema: InputSchema = serde_yaml::from_str(&s)?;
             println!("{schema:#?}");

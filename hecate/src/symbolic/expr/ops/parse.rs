@@ -4,7 +4,6 @@ use std::{num::ParseIntError, str::FromStr};
 
 use crate::expr::*;
 
-
 use thiserror::Error;
 
 use crate::{Equation, Expr, Integer};

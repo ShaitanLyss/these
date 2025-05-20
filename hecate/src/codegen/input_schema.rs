@@ -17,7 +17,7 @@ use mesh::Mesh;
 use range::Range;
 use serde::{Deserialize, Serialize};
 
-use crate::{expr, symbol, Equation, Expr, Func, Symbol, System};
+use crate::{Equation, Expr, Func, Symbol, System, expr, symbol};
 
 #[typetag::serde(tag = "type")]
 pub trait QuantityTrait: DynClone + Debug {}
@@ -98,7 +98,10 @@ impl InputSchema {
             }
         }
 
-        let equations: Vec<_> = equations.iter().map(|e| e.subs(&substitutions).as_eq().unwrap()).collect();
+        let equations: Vec<_> = equations
+            .iter()
+            .map(|e| e.subs(&substitutions).as_eq().unwrap())
+            .collect();
 
         let system = System::new(unknowns, knowns, equations.iter())
             .to_first_order_in_time()

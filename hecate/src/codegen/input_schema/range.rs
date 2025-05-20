@@ -1,11 +1,16 @@
+use schemars::{
+    JsonSchema,
+    schema::{
+        InstanceType, Schema, SchemaObject, SingleOrVec, StringValidation, SubschemaValidation,
+    },
+};
 use std::str::FromStr;
-use schemars::{schema::{InstanceType, Schema, SchemaObject, SingleOrVec, StringValidation, SubschemaValidation}, JsonSchema};
 
 use thiserror::Error;
 
-use serde::{de::Error, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Error};
 
-use super::{RawRepr, RANGE_PATTERN};
+use super::{RANGE_PATTERN, RawRepr};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Range<T> {
@@ -38,7 +43,6 @@ impl<T> JsonSchema for Range<T> {
                     string: Some(Box::new(StringValidation {
                         pattern: Some(RANGE_PATTERN.to_string()),
                         ..Default::default()
-
                     })),
                     ..Default::default()
                 }),
@@ -50,9 +54,8 @@ impl<T> JsonSchema for Range<T> {
             ]),
             ..Default::default()
         }));
-        
+
         Schema::Object(schema)
-        
     }
 }
 
@@ -135,9 +138,8 @@ where
 #[cfg(test)]
 mod tests {
 
-
     use super::*;
-    
+
     use super::quantity::*;
 
     #[test]
@@ -147,9 +149,9 @@ mod tests {
         assert_eq!(
             range,
             Range {
-            start: Area::new("0 m²").unwrap(),
-            end: Area::new("1 m^2").unwrap(),
-            raw: raw.to_string()
+                start: Area::new("0 m²").unwrap(),
+                end: Area::new("1 m^2").unwrap(),
+                raw: raw.to_string()
             }
         );
     }
@@ -161,9 +163,9 @@ mod tests {
         assert_eq!(
             range,
             Range {
-            start: Area::new("10 km²").unwrap(),
-            end: Area::new("1 m^2").unwrap(),
-            raw: raw.to_string()
+                start: Area::new("10 km²").unwrap(),
+                end: Area::new("1 m^2").unwrap(),
+                raw: raw.to_string()
             }
         );
     }

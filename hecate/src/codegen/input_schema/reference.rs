@@ -1,8 +1,13 @@
-use schemars::{schema::{InstanceType, Schema, SchemaObject, SingleOrVec, StringValidation, SubschemaValidation}, JsonSchema};
+use super::quantity::{QUANTITY_PATTERN, QUANTITY_RE};
+use schemars::{
+    JsonSchema,
+    schema::{
+        InstanceType, Schema, SchemaObject, SingleOrVec, StringValidation, SubschemaValidation,
+    },
+};
 use std::str::FromStr;
-use super::quantity::{QUANTITY_RE, QUANTITY_PATTERN};
 
-use serde::{de::Error, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Error};
 use std::error::Error as StdError;
 use thiserror::Error;
 
@@ -31,7 +36,6 @@ impl<T> JsonSchema for WithReference<T> {
                     string: Some(Box::new(StringValidation {
                         pattern: Some(QUANTITY_PATTERN.to_string()),
                         ..Default::default()
-
                     })),
                     ..Default::default()
                 }),
@@ -53,7 +57,7 @@ impl<T> RawRepr for WithReference<T> {
     }
 }
 
-//const REFERENCE_PATTERN: &str = r"^\s*(?:(reference|ref)\s)?\s*([^\s].*?)\s*$"; 
+//const REFERENCE_PATTERN: &str = r"^\s*(?:(reference|ref)\s)?\s*([^\s].*?)\s*$";
 
 //lazy_static! {
 //    static ref REFERENCE_RE: Regex = Regex::new(formatcp!(r"^{QUANTITY_RE}"))

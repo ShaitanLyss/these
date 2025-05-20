@@ -4,8 +4,8 @@
 
 pub mod symbolic;
 pub use symbolic::*;
-pub mod js;
 pub mod codegen;
+pub mod js;
 pub use codegen::BuildingBlock;
 use std::error::Error as StdError;
 

@@ -381,7 +381,7 @@ impl std::ops::DivAssign<&dyn Expr> for Box<dyn Expr> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{symbols, symbol};
+    use crate::{symbol, symbols};
 
     use super::*;
 
@@ -457,8 +457,5 @@ mod tests {
         let expr = expr.subs(&[[a.clone_box(), Rational::new_box(1, 2)]]);
 
         assert_eq!(&expr.expand().simplify(), &Rational::new_box(-1, 4))
-
-
-
     }
 }

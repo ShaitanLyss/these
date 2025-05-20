@@ -1,15 +1,15 @@
 #![allow(unused)]
-use super::unit::{format_unit, FormatUnitError};
 use super::RawRepr;
+use super::unit::{FormatUnitError, format_unit};
 use crate::StdError;
 use const_format::{concatcp, formatcp};
 use lazy_static::lazy_static;
 use regex::Regex;
+use schemars::JsonSchema;
 use schemars::schema::{
     InstanceType, Schema, SchemaObject, SingleOrVec, StringValidation, SubschemaValidation,
 };
-use schemars::JsonSchema;
-use serde::{de::Error, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Error};
 use std::fmt::{Debug, Display};
 use std::str::FromStr;
 use thiserror::Error;
@@ -346,7 +346,7 @@ mod tests {
         attempt_length_parse("ten m"); // Invalid number format
         attempt_length_parse("10 xyz"); // Unrecognized unit
         attempt_length_parse(""); // Empty string
-                                  //attempt_length_parse("10 10 m"); // Invalid format
+        //attempt_length_parse("10 10 m"); // Invalid format
         attempt_length_parse("reference m"); // Missing number
     }
 

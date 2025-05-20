@@ -340,6 +340,9 @@ mod tests {
 
     #[test]
     fn test_add_bis() {
-        assert_eq!(Rational::new(1, 4) + Rational::new(-1, 2), Rational::new(-1, 4))
+        assert_eq!(
+            Rational::new(1, 4) + Rational::new(-1, 2),
+            Rational::new(-1, 4)
+        )
     }
- }
+}

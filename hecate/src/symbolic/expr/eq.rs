@@ -22,7 +22,6 @@ impl Serialize for Eq {
 
 struct ExprDeserializeVisitor;
 
-
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("{0}")]
@@ -30,10 +29,8 @@ pub enum Error {
     #[error("parsed expression is not an equation")]
     NotAnEquation,
     #[error("{0}")]
-    FailedParsing(#[from] ParseError)
-
+    FailedParsing(#[from] ParseError),
 }
-
 
 impl<'de> serde::de::Visitor<'de> for ExprDeserializeVisitor {
     type Value = Eq;

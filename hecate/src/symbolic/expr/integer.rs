@@ -1,4 +1,3 @@
-
 use super::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -84,7 +83,6 @@ impl ToInteger for &Integer {
         (**self).clone()
     }
 }
-
 
 impl Integer {
     pub fn new_box(value: isize) -> Box<dyn Expr> {
