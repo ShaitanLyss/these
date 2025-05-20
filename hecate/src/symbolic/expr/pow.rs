@@ -96,6 +96,10 @@ impl Pow {
         })
     }
 
+    pub fn new_move(base: Box<dyn Expr>, exponent: Box<dyn Expr>) -> Pow {
+        Pow { base, exponent }
+    }
+
     pub fn new_box(base: Box<dyn Expr>, exponent: Box<dyn Expr>) -> Box<dyn Expr> {
         Box::new(Pow { base, exponent })
     }

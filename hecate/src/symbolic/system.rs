@@ -13,7 +13,22 @@ impl std::fmt::Display for System {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "System\n{}",
+            "System ({}), ({}), ({})\n{}",
+            self.unknowns
+                .iter()
+                .map(|f| f.str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            self.known_unknowns
+                .iter()
+                .map(|f| f.str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            self.knowns
+                .iter()
+                .map(|f| f.str())
+                .collect::<Vec<_>>()
+                .join(", "),
             self.equations
                 .iter()
                 .map(|e| format!("> {}", e.str()))

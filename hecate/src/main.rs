@@ -1,5 +1,7 @@
+use std::fs;
+
 use anyhow::Result;
-use hecate::{self};
+use hecate::{self, codegen::input_schema::InputSchema, BuildingBlock};
 
 use clap::{Parser, Subcommand};
 
@@ -14,6 +16,10 @@ struct Args {
 #[derive(Subcommand)]
 enum Commands {
     Cpp,
+    #[command(name = "bblock")]
+    BuildingBlock,
+    #[command(name = "schema")]
+    ParseInputSchema { schema_file: String},
     Test,
     Matrixify,
 }
@@ -23,6 +29,22 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     match &args.command {
+        Commands::ParseInputSchema { schema_file} => {
+            let s = fs::read_to_string(&schema_file)?;
+            let schema: InputSchema = serde_yaml::from_str(&s)?;
+            println!("{schema:#?}");
+            let sources = schema.generate_cpp_sources();
+            println!("{sources:#?}");
+        }
+        Commands::BuildingBlock => {
+            let bblock: BuildingBlock = serde_yaml::from_str(
+                r#"
+                includes:
+                    - deal.II/SparseMatrix
+                "#,
+            )?;
+            println!("{bblock:#?}");
+        }
         Commands::Cpp => unsafe {
             println!("{}", hecate::add(-12, 24));
         },

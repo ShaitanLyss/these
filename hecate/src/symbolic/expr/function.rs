@@ -19,6 +19,14 @@ impl Func {
         }
     }
 
+    pub fn new_move(name: String, args: Vec<Symbol>) -> Func {
+        Func { name, args }
+    }
+
+    pub fn new_move_box(name: String, args: Vec<Symbol>) -> Box<dyn Expr> {
+        Box::new(Func::new_move(name, args))
+    }
+
     pub fn time_discretize(&self) -> [Func; 2] {
         return [
             Func {

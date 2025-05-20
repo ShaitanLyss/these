@@ -8,6 +8,7 @@ pub mod expr;
 pub mod system;
 pub use expr::*;
 pub use system::System;
+pub type Equation = expr::Eq;
 
 pub enum KnownExpr<'a> {
     Add(&'a Add),

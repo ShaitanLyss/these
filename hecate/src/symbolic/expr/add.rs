@@ -29,6 +29,10 @@ impl Add {
             operands: operands.into_iter().map(|e| e.clone_box()).collect(),
         }
     }
+
+    pub fn new_v2(ops: Vec<Box<dyn Expr>>) -> Self {
+        Add { operands: ops }
+    }
 }
 
 impl From<Vec<&Box<dyn Expr>>> for Add {

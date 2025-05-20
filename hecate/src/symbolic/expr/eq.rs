@@ -1,11 +1,62 @@
 use std::fmt;
 
-use super::*;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+use super::{ops::ParseError, *};
 
 #[derive(Clone)]
 pub struct Eq {
     pub lhs: Box<dyn Expr>,
     pub rhs: Box<dyn Expr>,
+}
+
+impl Serialize for Eq {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.str())
+    }
+}
+
+struct ExprDeserializeVisitor;
+
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("{0}")]
+    Message(String),
+    #[error("parsed expression is not an equation")]
+    NotAnEquation,
+    #[error("{0}")]
+    FailedParsing(#[from] ParseError)
+
+}
+
+
+impl<'de> serde::de::Visitor<'de> for ExprDeserializeVisitor {
+    type Value = Eq;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a properly written equation")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Eq::from_str(v).map_err(|e| E::custom(e.to_string()))
+    }
+}
+
+impl<'de> Deserialize<'de> for Eq {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(ExprDeserializeVisitor)
+    }
 }
 
 impl fmt::Debug for Eq {
@@ -32,6 +83,10 @@ impl Eq {
 
     pub fn new_box(lhs: Box<dyn Expr>, rhs: Box<dyn Expr>) -> Box<dyn Expr> {
         Box::new(Eq { lhs, rhs })
+    }
+
+    pub fn from_str(s: &str) -> Result<Eq, Error> {
+        ops::parse_expr(s)?.as_eq().ok_or(Error::NotAnEquation)
     }
 }
 

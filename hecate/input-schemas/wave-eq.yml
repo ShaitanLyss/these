@@ -1,0 +1,37 @@
+meshes:
+    mesh:
+        type: hyper_cube
+        range: -1 m .. 1 m
+        subdivisions: 5
+
+equations:
+    wave: diff(u, t, 2) - c^2 * laplacian * u = f
+
+time: 0 .. 5 s
+
+parameters:
+    c: 
+      type: speed
+      value: 1
+
+solve:
+  equations:
+    - wave
+  mesh: mesh
+  element: Q1
+
+unknowns:
+  u:
+    initial: u0
+    boundary: u1
+    derivative:
+      initial: v0
+      boundary: v1
+
+
+functions:
+    f: 
+    u0: 0 
+    u1:
+    v0: 0
+    v1:

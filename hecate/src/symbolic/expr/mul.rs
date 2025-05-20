@@ -111,6 +111,10 @@ impl Mul {
             operands: operands.into_iter().map(|e| e.clone_box()).collect(),
         }
     }
+
+    pub fn new_move(operands: Vec<Box<dyn Expr>>) -> Self {
+        Mul { operands }
+    }
 }
 
 impl<E: Expr> std::ops::Mul<&E> for Box<dyn Expr> {
