@@ -62,6 +62,13 @@ impl Expr for Rational {
             res.num *= -1;
             res.denom *= -1;
         }
+        // TODO: proper simplification thanks to GCD
+        for k in 2..self.denom.abs() {
+            if self.num % k == 0 && self.denom % k == 0 {
+                res.num /= k;
+                res.denom /= k;
+            }
+        }
         if self.num % self.denom == 0 {
             Integer::new_box(self.num / self.denom)
         } else {
@@ -330,4 +337,9 @@ mod tests {
 
         assert!(a > b)
     }
-}
+
+    #[test]
+    fn test_add_bis() {
+        assert_eq!(Rational::new(1, 4) + Rational::new(-1, 2), Rational::new(-1, 4))
+    }
+ }

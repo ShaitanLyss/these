@@ -381,7 +381,7 @@ impl std::ops::DivAssign<&dyn Expr> for Box<dyn Expr> {
 
 #[cfg(test)]
 mod tests {
-    use crate::symbols;
+    use crate::{symbols, symbol};
 
     use super::*;
 
@@ -440,5 +440,25 @@ mod tests {
         let [a, b, c] = symbols!("a", "b", "c");
 
         assert_eq!(&(a * b / (a * c)), &(b / c));
+    }
+
+    #[test]
+    #[ignore]
+    fn test_simplify_frac_mul() {
+        let expr = Mul::new_move(vec![Rational::new_box(1, 2), Rational::new_box(1, 2)]);
+
+        assert_eq!(expr.simplify().srepr(), "")
+    }
+
+    #[test]
+    fn test_weird_issue() {
+        let a = symbol!("a");
+        let expr = (a - Integer::new(1).get_ref()) * a;
+        let expr = expr.subs(&[[a.clone_box(), Rational::new_box(1, 2)]]);
+
+        assert_eq!(&expr.expand().simplify(), &Rational::new_box(-1, 4))
+
+
+
     }
 }
