@@ -17,7 +17,7 @@ use mesh::Mesh;
 use range::Range;
 use serde::{Deserialize, Serialize};
 
-use crate::{Equation, Expr, Func, Symbol, System, expr, symbol};
+use crate::{Equation, Expr, Func, Symbol, System, symbol};
 
 #[typetag::serde(tag = "type")]
 pub trait QuantityTrait: DynClone + Debug {}
