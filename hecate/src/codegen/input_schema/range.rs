@@ -14,8 +14,8 @@ use super::{RANGE_PATTERN, RawRepr};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Range<T> {
-    start: T,
-    end: T,
+    pub start: T,
+    pub end: T,
     raw: String,
 }
 

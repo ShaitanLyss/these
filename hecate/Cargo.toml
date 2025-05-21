@@ -29,3 +29,4 @@ dyn-clone = "1.0.19"
 regex = "1.11.1"
 uom = { version = "0.37.0", default-features = false, features = ["std", "si", "serde", "f64"] }
 const_format = "0.2.34"
+num = "0.4.3"

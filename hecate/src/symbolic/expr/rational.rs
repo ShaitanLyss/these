@@ -1,3 +1,5 @@
+use num::integer::gcd;
+
 use super::*;
 
 #[derive(Clone, Copy)]
@@ -62,13 +64,9 @@ impl Expr for Rational {
             res.num *= -1;
             res.denom *= -1;
         }
-        // TODO: proper simplification thanks to GCD
-        for k in 2..self.denom.abs() {
-            if self.num % k == 0 && self.denom % k == 0 {
-                res.num /= k;
-                res.denom /= k;
-            }
-        }
+        let d = gcd(self.num, self.denom);
+        res.num /= d;
+        res.denom /= d;
         if self.num % self.denom == 0 {
             Integer::new_box(self.num / self.denom)
         } else {

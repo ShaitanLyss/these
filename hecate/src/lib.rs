@@ -19,14 +19,14 @@ derive_alias! {
     derive_schema => #[derive(Serialize, Deserialize, PartialEq, PartialOrd)]
 }
 
-derive_schema! {
-pub enum Mesh {
-
-}
-}
-
-derive_schema! {
-    pub struct NumericalScheme {
-
-    }
-}
+// derive_schema! {
+// pub enum Mesh {
+//
+// }
+// }
+//
+// derive_schema! {
+//     pub struct NumericalScheme {
+//
+//     }
+// }

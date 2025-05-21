@@ -16,6 +16,10 @@ struct Args {
 #[derive(Subcommand)]
 enum Commands {
     Cpp,
+    #[command(name = "gen")]
+    CodeGen {
+        schema_file: String
+    },
     #[command(name = "bblock")]
     BuildingBlock,
     #[command(name = "schema")]
@@ -35,8 +39,17 @@ async fn main() -> Result<()> {
             let s = fs::read_to_string(&schema_file)?;
             let schema: InputSchema = serde_yaml::from_str(&s)?;
             println!("{schema:#?}");
+        }
+        Commands::CodeGen {schema_file} => {
+            let s = fs::read_to_string(&schema_file)?;
+            let schema: InputSchema = serde_yaml::from_str(&s)?;
             let sources = schema.generate_cpp_sources();
-            println!("{sources:#?}");
+            // Create build directory
+            fs::create_dir_all("./build")?;
+            // Write sources
+            fs::write("./build/main.cpp", sources.unwrap())?;
+            // Write cmakelists.txt
+            fs::write("./build/CMakeLists.txt", include_str!("./codegen/input_schema/deal.ii/CMakeLists.txt"))?;
         }
         Commands::BuildingBlock => {
             let bblock: BuildingBlock = serde_yaml::from_str(
