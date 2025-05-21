@@ -18,9 +18,21 @@ pub trait Mesh: std::fmt::Debug + DynClone + Any {
 dyn_clone::clone_trait_object!(Mesh);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct HyperCubeMesh {
     pub range: Range<Length>,
     pub subdivisions: usize,
+    pub show_info: bool,
+}
+
+impl Default for HyperCubeMesh {
+    fn default() -> Self {
+        HyperCubeMesh {
+            range: "0 m .. 1 m".parse().unwrap(),
+            subdivisions: 5,
+            show_info: false,
+        }
+    }
 }
 
 #[typetag::serde(name = "hyper_cube")]

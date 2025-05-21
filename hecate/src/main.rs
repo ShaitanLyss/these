@@ -43,13 +43,15 @@ async fn main() -> Result<()> {
         Commands::CodeGen {schema_file} => {
             let s = fs::read_to_string(&schema_file)?;
             let schema: InputSchema = serde_yaml::from_str(&s)?;
-            let sources = schema.generate_cpp_sources();
+            let sources = schema.generate_cpp_sources()?;
             // Create build directory
             fs::create_dir_all("./build")?;
             // Write sources
-            fs::write("./build/main.cpp", sources.unwrap())?;
+            fs::write("./build/main.cpp", sources)?;
             // Write cmakelists.txt
             fs::write("./build/CMakeLists.txt", include_str!("./codegen/input_schema/deal.ii/CMakeLists.txt"))?;
+
+            println!("Sources generated in ./build!");
         }
         Commands::BuildingBlock => {
             let bblock: BuildingBlock = serde_yaml::from_str(

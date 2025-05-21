@@ -1,6 +1,7 @@
+use indexmap::IndexMap;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 pub trait RawRepr {
     fn raw(&self) -> &str;
@@ -32,7 +33,12 @@ dyn_clone::clone_trait_object!(QuantityTrait);
 
 use uom::si::f64 as si;
 
-use super::{BuildingBlock, building_block::BuildingBlockError};
+use super::{
+    BuildingBlock,
+    building_block::{
+        BuildingBlockError, DofHandlerConfig, MatrixConfig, SparsityPatternConfig, VectorConfig,
+    },
+};
 
 #[typetag::serde(name = "speed")]
 impl QuantityTrait for si::Velocity {}
@@ -72,7 +78,7 @@ pub struct Unknown {
 
 #[derive(Error, Debug)]
 pub enum CodeGenError {
-    #[error("block error: {0}")]
+    #[error("failed to construct a block")]
     BlockError(#[from] BuildingBlockError),
     #[error("templating error: {0}")]
     TemplatingError(#[from] tera::Error),
@@ -145,13 +151,46 @@ impl InputSchema {
             .to_constant_mesh()
             .simplify();
 
-        println!("/*\n{system}\n*/\n");
+        // println!("/*\n{system}\n*/\n");
 
         let factory = deal_ii_factory();
         let mut blocks = BuildingBlockCollector::new();
 
-        let mesh = factory.get_mesh("mesh", mesh.get_ref())?;
-        blocks.push(mesh);
+        let mesh = blocks.insert("mesh", factory.mesh("mesh", mesh.get_ref())?)?;
+
+        let element = blocks.insert("element", factory.finite_element("element", element)?)?;
+
+        let dof_handler = blocks.insert(
+            "dof_handler",
+            factory.dof_handler("dof_handler", &DofHandlerConfig { mesh, element })?,
+        )?;
+
+        let vector_config = VectorConfig { dof_handler };
+
+        let mut vectors: HashMap<String, String> = HashMap::with_capacity(system.num_vectors());
+
+        for vector_symbol in system.vectors() {
+            let vector = &vector_symbol
+                .to_lowercase()
+                .replace("^n-1", "_prev")
+                .replace("^n", "");
+            vectors.insert(vector_symbol.to_string(), vector.to_string());
+            blocks.insert(vector, factory.vector(vector, &vector_config)?)?;
+        }
+
+        let sparsity_pattern = blocks.insert(
+            "sparsity_pattern",
+            factory.sparsity_pattern("sparsity_pattern", &SparsityPatternConfig { dof_handler })?,
+        )?;
+
+        // let laplace_mat = blocks.insert(
+        //     "laplace_mat",
+        //     factory.matrix("laplace_mat", &MatrixConfig { sparsity_pattern })?,
+        // )?;
+        // let mass_mat = blocks.insert(
+        //     "mass_mat",
+        //     factory.matrix("mass_mat", &MatrixConfig { sparsity_pattern })?,
+        // )?;
 
         let context: tera::Context = (blocks.collect()).into();
 
@@ -161,39 +200,80 @@ impl InputSchema {
 
 #[derive(Debug, Clone)]
 struct BuildingBlockCollector {
-    blocks: Vec<BuildingBlock>,
+    blocks: IndexMap<String, BuildingBlock>,
+    additional_names: HashSet<String>,
 }
 
 impl From<BuildingBlock> for tera::Context {
     fn from(block: BuildingBlock) -> Self {
         let mut context = tera::Context::new();
-        let BuildingBlock { includes, data, setup } = block;
-        context.insert("includes", &includes.into_iter().map(|s| format!("#include <{s}>")).join("\n"));
+        let BuildingBlock {
+            includes,
+            data,
+            setup,
+            additional_names: _,
+            constructor,
+        } = block;
+        context.insert(
+            "includes",
+            &includes
+                .into_iter()
+                .map(|s| format!("#include <{s}>"))
+                .join("\n"),
+        );
         context.insert("data", &to_cpp_lines("  ", data));
-        context.insert("setup", &to_cpp_lines("  ", setup));
+        context.insert("setup", &to_cpp_lines("    ", setup));
+        context.insert(
+            "constructors",
+            &(if constructor.is_empty() {
+                "".to_string()
+            } else {
+                format!(": {}", &constructor.into_iter().join(", "))
+            }),
+        );
         context
     }
 }
 
 pub fn to_cpp_lines<Lines: IntoIterator<Item = String>>(prefix: &str, lines: Lines) -> String {
-    lines.into_iter().map(|s| format!("{prefix}{s};")).join("\n")
+    lines
+        .into_iter()
+        .map(|s| format!("{prefix}{s};"))
+        .join("\n")
 }
 
 impl BuildingBlockCollector {
     fn new() -> Self {
-        BuildingBlockCollector { blocks: Vec::new() }
+        BuildingBlockCollector {
+            blocks: IndexMap::new(),
+            additional_names: HashSet::new(),
+        }
     }
 
-    fn push(&mut self, block: BuildingBlock) {
-        self.blocks.push(block);
+    fn insert<'a>(
+        &mut self,
+        name: &'a str,
+        block: BuildingBlock,
+    ) -> Result<&'a str, BuildingBlockError> {
+        if self.blocks.contains_key(name) {
+            Err(BuildingBlockError::BlockAlreadyExists(name.to_string()))?
+        }
+        if self.additional_names.contains(name) {
+            Err(BuildingBlockError::NameAlreadyExists(name.to_string()))?
+        }
+        self.additional_names
+            .extend(block.additional_names.iter().cloned());
+        self.blocks.insert(name.to_string(), block);
+        return Ok(name);
     }
     fn collect(self) -> BuildingBlock {
         let mut res = BuildingBlock::new();
 
-        for block in self.blocks {
-            res.includes.extend(block.includes);
-            res.setup.extend(block.setup);
-            res.data.extend(block.data);
+        for (_, BuildingBlock { includes, data, setup, additional_names: _, constructor }) in self.blocks {
+            res.includes.extend(includes);
+            res.setup.extend(setup);
+            res.data.extend(data);
+            res.constructor.extend(constructor);
         }
 
         res

@@ -307,4 +307,20 @@ impl System {
             equations,
         }
     }
+
+    pub(crate) fn vectors(&self) -> impl Iterator<Item = String> {
+        self.unknowns
+            .iter()
+            .chain(self.known_unknowns.iter())
+            .chain(self.knowns.iter())
+            .map(|f| f.str())
+    }
+
+    pub(crate) fn num_vectors(&self) -> usize {
+        [&self.unknowns, &self.known_unknowns, &self.knowns]
+            .iter()
+            .map(|v| v.len())
+            .reduce(|acc, e| acc + e)
+            .unwrap()
+    }
 }
