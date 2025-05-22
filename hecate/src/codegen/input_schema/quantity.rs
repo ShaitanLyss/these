@@ -9,7 +9,9 @@ use schemars::JsonSchema;
 use schemars::schema::{
     InstanceType, Schema, SchemaObject, SingleOrVec, StringValidation, SubschemaValidation,
 };
+use serde::de::Visitor;
 use serde::{Deserialize, Serialize, de::Error};
+use serde_yaml::Value;
 use std::fmt::{Debug, Display};
 use std::str::FromStr;
 use thiserror::Error;
@@ -19,6 +21,19 @@ use uom::str::ParseQuantityError as UomParseError;
 pub struct Quantity<L> {
     raw: String,
     parsed: L,
+}
+
+
+impl Time {
+    pub fn seconds(&self) -> f64 {
+        self.parsed.get::<uom::si::time::second>()
+    }
+}
+
+impl Length {
+    pub fn meters(&self) -> f64 {
+        self.parsed.get::<uom::si::length::meter>()
+    }
 }
 
 impl<T> JsonSchema for Quantity<T> {
@@ -98,6 +113,28 @@ impl<T> Serialize for Quantity<T> {
     }
 }
 
+struct QuantityVisitor<T> {
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<'de, T> Visitor<'de> for QuantityVisitor<T>
+where
+    T: FromStr<Err = UomParseError> + Debug + DefaultUnit,
+{
+    type Value = Quantity<T>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a properly formatted quantity with 'value [unit]'")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(v.parse().map_err(|e| E::custom(e))?)
+    }
+}
+
 impl<'de, T> Deserialize<'de> for Quantity<T>
 where
     T: FromStr<Err = UomParseError> + Debug + DefaultUnit,
@@ -106,9 +143,9 @@ where
     where
         D: serde::Deserializer<'de>,
     {
-        // First, deserialize the `raw` field as a string
-        let raw: &str = Deserialize::deserialize(deserializer)?;
-        Ok(Quantity::new(raw).map_err(|e| D::Error::custom(e))?)
+        deserializer.deserialize_str(QuantityVisitor {
+            _marker: std::marker::PhantomData,
+        })
     }
 }
 
@@ -137,7 +174,6 @@ where
 {
     // Constructor to create a new ParsedValue
     pub fn new(raw: &str) -> Result<Self, ParseQuantityError> {
-        QUANTITY_RE.to_string();
         if let Some(captures) = QUANTITY_RE.captures(raw) {
             if captures.get(1).is_some() {
                 return Err(ParseQuantityError::NoReference);
@@ -230,6 +266,12 @@ impl DefaultUnit for si::Length {
     const DEFAULT_UNIT: &str = "km";
 }
 
+pub type Speed = Quantity<si::Velocity>;
+
+impl DefaultUnit for si::Velocity {
+    const DEFAULT_UNIT: &str = "m/s";
+}
+
 /// Mass (default: grams, since small mass quantities in geoscience, especially in analysis, use grams)
 pub type Mass = Quantity<si::Mass>;
 
@@ -275,7 +317,9 @@ impl DefaultUnit for si::MolarMass {
 mod tests {
     use std::str::FromStr;
 
-    use super::{DefaultUnit, Pressure, Quantity};
+    use crate::codegen::input_schema::quantity::Time;
+
+    use super::{DefaultUnit, Pressure, QUANTITY_RE, Quantity};
     use std::fmt::Debug;
     use uom::si::{f64::Length, length::*};
 
@@ -354,5 +398,17 @@ mod tests {
     fn parse_reference_should_err() {
         let raw = "reference 5 000 000";
         assert!(raw.parse::<Pressure>().is_err());
+    }
+
+    #[test]
+    fn parse_real_number() {
+        let raw = "0.1 s";
+        let time: Time = raw.parse().unwrap();
+        assert_eq!(time.parsed.get::<uom::si::time::second>(), 0.1)
+    }
+
+    #[test]
+    fn test_re() {
+        assert!(QUANTITY_RE.captures("0.1 s").is_some())
     }
 }

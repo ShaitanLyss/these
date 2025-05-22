@@ -10,6 +10,7 @@ equations:
     wave: diff(u, t, 2) - c^2 * laplacian * u = f
 
 time: 0 .. 5 s
+time_step: 0.1 s
 
 parameters:
     c: 

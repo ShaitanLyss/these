@@ -31,9 +31,11 @@ pub trait QuantityTrait: DynClone + Debug {}
 
 dyn_clone::clone_trait_object!(QuantityTrait);
 
-use uom::si::f64 as si;
+use uom::si::{f64 as si, time};
 
-use super::building_block::{Block, BuildingBlockFactory, ShapeMatrix, ShapeMatrixConfig};
+use super::building_block::{
+    Block, BuildingBlockFactory, ShapeMatrix, ShapeMatrixConfig, SolveUnknownConfig,
+};
 use super::{
     BuildingBlock,
     building_block::{
@@ -63,7 +65,7 @@ pub struct InputSchema {
     pub meshes: HashMap<String, Box<dyn Mesh>>,
     pub equations: HashMap<String, Equation>,
     pub time: Range<Time>,
-    // pub finite_elements: HashMap<String, String>,
+    pub time_step: Time,
     pub parameters: HashMap<String, Box<dyn QuantityTrait>>,
     pub unknowns: HashMap<String, Unknown>,
     pub functions: HashMap<String, String>,
@@ -90,7 +92,9 @@ lazy_static! {
         let mut tera = Tera::default();
         match tera.add_raw_template(
             "cpp_source",
-            include_str!("./input_schema/cpp_source_template.cpp"),
+            &include_str!("./input_schema/cpp_source_template.cpp")
+                .replace("/*", "")
+                .replace("*/", ""),
         ) {
             Ok(t) => t,
             Err(e) => {
@@ -188,9 +192,12 @@ impl InputSchema {
             HashMap::with_capacity(system.unknowns.len());
 
         let matrix_config = MatrixConfig { sparsity_pattern };
+        let rhs = blocks.create("rhs", Block::Vector(&vector_config))?;
         for unknown in &system.unknowns {
             let unknown = unknown.str();
-            let mat_name = format!("matrix_{}", unknown.to_lowercase().replace("^n", ""));
+            let name = unknown.to_lowercase().replace("^n", "");
+            let mat_name = format!("matrix_{}", &name);
+            let unknown_vec = &vectors[&unknown];
 
             unknowns_matrices.insert(
                 unknown,
@@ -198,6 +205,15 @@ impl InputSchema {
                     .create(&mat_name, Block::Matrix(&matrix_config))?
                     .to_string(),
             );
+
+            blocks.create(
+                &format!("solve_{name}"),
+                Block::SolveUnknown(&SolveUnknownConfig {
+                    rhs,
+                    unknown_vec,
+                    unknown_mat: &mat_name,
+                }),
+            )?;
         }
 
         let laplace_mat = blocks.insert(
@@ -225,7 +241,10 @@ impl InputSchema {
             )?,
         )?;
 
-        let context: tera::Context = (blocks.collect()).into();
+        let mut context: tera::Context = blocks.collect().into();
+        context.insert("time_start", &self.time.start.seconds());
+        context.insert("time_end", &self.time.end.seconds());
+        context.insert("time_step", &self.time_step.seconds());
 
         Ok(TEMPLATES.render("cpp_source", &context)?)
     }
@@ -247,6 +266,8 @@ impl From<BuildingBlock> for tera::Context {
             setup,
             additional_names: _,
             constructor,
+            methods_defs,
+            methods_impls,
         } = block;
         context.insert(
             "includes",
@@ -265,6 +286,8 @@ impl From<BuildingBlock> for tera::Context {
                 format!(": {}", &constructor.into_iter().join(", "))
             }),
         );
+        context.insert("methods_defs", &to_cpp_lines("  ", methods_defs));
+        context.insert("methods_impls", &methods_impls.into_iter().join("\n"));
         context
     }
 }
@@ -312,6 +335,8 @@ impl<'fa> BuildingBlockCollector<'fa> {
                 setup,
                 additional_names: _,
                 constructor,
+                methods_defs,
+                methods_impls,
             },
         ) in self.blocks
         {
@@ -319,20 +344,26 @@ impl<'fa> BuildingBlockCollector<'fa> {
             res.setup.extend(setup);
             res.data.extend(data);
             res.constructor.extend(constructor);
+            res.methods_defs.extend(methods_defs);
+            res.methods_impls.extend(methods_impls);
         }
 
         res
     }
 
-    fn create<'b: 'fa, 'na>(
+    fn create<'na>(
         &mut self,
         name: &'na str,
-        block: Block<'b>,
+        block: Block<'_>,
     ) -> Result<&'na str, BuildingBlockError> {
         self.insert(
             name,
             match block {
                 Block::Matrix(config) => self.factory.matrix(name, config)?,
+                Block::Vector(vector_config) => self.factory.vector(name, vector_config)?,
+                Block::SolveUnknown(solve_unknown_config) => {
+                    self.factory.solve_unknown(name, solve_unknown_config)?
+                }
             },
         )?;
         Ok(name)

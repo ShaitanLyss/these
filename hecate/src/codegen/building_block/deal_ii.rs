@@ -2,7 +2,7 @@ use crate::codegen::input_schema::{FiniteElement, mesh::HyperCubeMesh};
 
 use super::{
     BuildingBlock, BuildingBlockError, BuildingBlockFactory, DofHandlerConfig, MatrixConfig,
-    ShapeMatrixConfig, SparsityPatternConfig, VectorConfig,
+    ShapeMatrixConfig, SolveUnknownConfig, SparsityPatternConfig, VectorConfig,
 };
 
 pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
@@ -126,6 +126,39 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
                     format!("MatrixCreator::create_{kind}_matrix({dof_handler}, QGauss<2>({element}.degree + 1), {name})")
         ]);
         Ok(matrix)
+    });
+
+    factory.set_solve_unknown(&|name,
+                                SolveUnknownConfig {
+                                    rhs,
+                                    unknown_vec,
+                                    unknown_mat,
+                                }| {
+        let mut block = BuildingBlock::new();
+
+        block.add_includes(&[
+            "deal.II/lac/solver_cg.h",
+            "deal.II/lac/precondition.h",
+            "deal.II/lac/solver_control.h",
+        ]);
+
+        block.methods_defs.push(format!("void {name}()"));
+
+        block.methods_impls.push(format!(
+            r#"
+void Sim::{name}() {{
+  SolverControl solver_control(1000, 1e-8 * {rhs}.l2_norm());
+  SolverCG<Vector<data_type>> cg(solver_control);
+
+  cg.solve({unknown_mat}, {unknown_vec}, {rhs}, PreconditionIdentity());
+
+  std::cout << "    {name}: " << solver_control.last_step()
+            << "  CG iterations." << std::endl;
+}}
+            "#
+        ));
+
+        Ok(block)
     });
 
     factory

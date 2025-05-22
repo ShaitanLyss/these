@@ -11,7 +11,6 @@ use std::error::Error as StdError;
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-use serde::{Deserialize, Serialize};
 
 use derive_alias::derive_alias;
 
