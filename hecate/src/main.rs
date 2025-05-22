@@ -18,7 +18,7 @@ enum Commands {
     Cpp,
     #[command(name = "gen")]
     CodeGen {
-        schema_file: String
+        schema_file: String,
     },
     #[command(name = "bblock")]
     BuildingBlock,
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
             let schema: InputSchema = serde_yaml::from_str(&s)?;
             println!("{schema:#?}");
         }
-        Commands::CodeGen {schema_file} => {
+        Commands::CodeGen { schema_file } => {
             let s = fs::read_to_string(&schema_file)?;
             let schema: InputSchema = serde_yaml::from_str(&s)?;
             let sources = schema.generate_cpp_sources()?;
@@ -49,7 +49,10 @@ async fn main() -> Result<()> {
             // Write sources
             fs::write("./build/main.cpp", sources)?;
             // Write cmakelists.txt
-            fs::write("./build/CMakeLists.txt", include_str!("./codegen/input_schema/deal.ii/CMakeLists.txt"))?;
+            fs::write(
+                "./build/CMakeLists.txt",
+                include_str!("./codegen/input_schema/deal.ii/CMakeLists.txt"),
+            )?;
 
             println!("Sources generated in ./build!");
         }

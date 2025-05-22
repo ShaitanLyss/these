@@ -1,4 +1,7 @@
-use std::{collections::{HashMap, HashSet}, fmt::Display};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
 
 mod deal_ii;
 pub use deal_ii::deal_ii_factory;
@@ -98,10 +101,9 @@ pub struct SparsityPatternConfig<'a> {
     pub dof_handler: &'a str,
 }
 
-
 #[derive(Clone)]
 pub enum Block<'a> {
-    Matrix(&'a MatrixConfig<'a>)
+    Matrix(&'a MatrixConfig<'a>),
 }
 
 #[derive(Clone)]

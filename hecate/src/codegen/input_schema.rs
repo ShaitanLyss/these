@@ -194,7 +194,9 @@ impl InputSchema {
 
             unknowns_matrices.insert(
                 unknown,
-                blocks.create(&mat_name, Block::Matrix(&matrix_config))?.to_string(),
+                blocks
+                    .create(&mat_name, Block::Matrix(&matrix_config))?
+                    .to_string(),
             );
         }
 
@@ -322,7 +324,11 @@ impl<'fa> BuildingBlockCollector<'fa> {
         res
     }
 
-    fn create<'b: 'fa, 'na>(&mut self, name: &'na str, block: Block<'b>) -> Result<&'na str, BuildingBlockError> {
+    fn create<'b: 'fa, 'na>(
+        &mut self,
+        name: &'na str,
+        block: Block<'b>,
+    ) -> Result<&'na str, BuildingBlockError> {
         self.insert(
             name,
             match block {
