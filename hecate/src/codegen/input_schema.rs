@@ -33,6 +33,7 @@ dyn_clone::clone_trait_object!(QuantityTrait);
 
 use uom::si::f64 as si;
 
+use super::building_block::{Block, BuildingBlockFactory, ShapeMatrix, ShapeMatrixConfig};
 use super::{
     BuildingBlock,
     building_block::{
@@ -154,7 +155,7 @@ impl InputSchema {
         // println!("/*\n{system}\n*/\n");
 
         let factory = deal_ii_factory();
-        let mut blocks = BuildingBlockCollector::new();
+        let mut blocks = BuildingBlockCollector::new(&factory);
 
         let mesh = blocks.insert("mesh", factory.mesh("mesh", mesh.get_ref())?)?;
 
@@ -183,14 +184,44 @@ impl InputSchema {
             factory.sparsity_pattern("sparsity_pattern", &SparsityPatternConfig { dof_handler })?,
         )?;
 
-        // let laplace_mat = blocks.insert(
-        //     "laplace_mat",
-        //     factory.matrix("laplace_mat", &MatrixConfig { sparsity_pattern })?,
-        // )?;
-        // let mass_mat = blocks.insert(
-        //     "mass_mat",
-        //     factory.matrix("mass_mat", &MatrixConfig { sparsity_pattern })?,
-        // )?;
+        let mut unknowns_matrices: HashMap<String, String> =
+            HashMap::with_capacity(system.unknowns.len());
+
+        let matrix_config = MatrixConfig { sparsity_pattern };
+        for unknown in &system.unknowns {
+            let unknown = unknown.str();
+            let mat_name = format!("matrix_{}", unknown.to_lowercase().replace("^n", ""));
+
+            unknowns_matrices.insert(
+                unknown,
+                blocks.create(&mat_name, Block::Matrix(&matrix_config))?.to_string(),
+            );
+        }
+
+        let laplace_mat = blocks.insert(
+            "laplace_mat",
+            factory.shape_matrix(
+                "laplace_mat",
+                &ShapeMatrixConfig {
+                    kind: ShapeMatrix::Laplace,
+                    dof_handler,
+                    element,
+                    matrix_config: &matrix_config,
+                },
+            )?,
+        )?;
+        let mass_mat = blocks.insert(
+            "mass_mat",
+            factory.shape_matrix(
+                "mass_mat",
+                &ShapeMatrixConfig {
+                    kind: ShapeMatrix::Mass,
+                    dof_handler,
+                    element,
+                    matrix_config: &matrix_config,
+                },
+            )?,
+        )?;
 
         let context: tera::Context = (blocks.collect()).into();
 
@@ -198,10 +229,11 @@ impl InputSchema {
     }
 }
 
-#[derive(Debug, Clone)]
-struct BuildingBlockCollector {
+#[derive(Clone)]
+struct BuildingBlockCollector<'fa> {
     blocks: IndexMap<String, BuildingBlock>,
     additional_names: HashSet<String>,
+    factory: &'fa BuildingBlockFactory<'fa>,
 }
 
 impl From<BuildingBlock> for tera::Context {
@@ -242,11 +274,12 @@ pub fn to_cpp_lines<Lines: IntoIterator<Item = String>>(prefix: &str, lines: Lin
         .join("\n")
 }
 
-impl BuildingBlockCollector {
-    fn new() -> Self {
+impl<'fa> BuildingBlockCollector<'fa> {
+    fn new(factory: &'fa BuildingBlockFactory<'fa>) -> Self {
         BuildingBlockCollector {
             blocks: IndexMap::new(),
             additional_names: HashSet::new(),
+            factory,
         }
     }
 
@@ -269,7 +302,17 @@ impl BuildingBlockCollector {
     fn collect(self) -> BuildingBlock {
         let mut res = BuildingBlock::new();
 
-        for (_, BuildingBlock { includes, data, setup, additional_names: _, constructor }) in self.blocks {
+        for (
+            _,
+            BuildingBlock {
+                includes,
+                data,
+                setup,
+                additional_names: _,
+                constructor,
+            },
+        ) in self.blocks
+        {
             res.includes.extend(includes);
             res.setup.extend(setup);
             res.data.extend(data);
@@ -277,5 +320,15 @@ impl BuildingBlockCollector {
         }
 
         res
+    }
+
+    fn create<'b: 'fa, 'na>(&mut self, name: &'na str, block: Block<'b>) -> Result<&'na str, BuildingBlockError> {
+        self.insert(
+            name,
+            match block {
+                Block::Matrix(config) => self.factory.matrix(name, config)?,
+            },
+        )?;
+        Ok(name)
     }
 }

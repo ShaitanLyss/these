@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, fmt::Display};
 
 mod deal_ii;
 pub use deal_ii::deal_ii_factory;
@@ -69,6 +69,26 @@ pub struct MatrixConfig<'a> {
     pub sparsity_pattern: &'a str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShapeMatrix {
+    Laplace,
+    Mass,
+}
+
+impl Display for ShapeMatrix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = format!("{self:?}");
+        write!(f, "{}", s.to_lowercase())
+    }
+}
+
+pub struct ShapeMatrixConfig<'a> {
+    pub dof_handler: &'a str,
+    pub element: &'a str,
+    pub matrix_config: &'a MatrixConfig<'a>,
+    pub kind: ShapeMatrix,
+}
+
 pub struct DofHandlerConfig<'a> {
     pub mesh: &'a str,
     pub element: &'a str,
@@ -76,6 +96,12 @@ pub struct DofHandlerConfig<'a> {
 
 pub struct SparsityPatternConfig<'a> {
     pub dof_handler: &'a str,
+}
+
+
+#[derive(Clone)]
+pub enum Block<'a> {
+    Matrix(&'a MatrixConfig<'a>)
 }
 
 #[derive(Clone)]
@@ -87,6 +113,13 @@ pub struct BuildingBlockFactory<'a> {
     dof_handler: Option<BlockGetter<'a, DofHandlerConfig<'a>>>,
     element: Option<BlockGetter<'a, FiniteElement>>,
     sparsity_pattern: Option<BlockGetter<'a, SparsityPatternConfig<'a>>>,
+    shape_matrix: Option<
+        &'a dyn Fn(
+            &str,
+            BuildingBlock,
+            &ShapeMatrixConfig,
+        ) -> Result<BuildingBlock, BuildingBlockError>,
+    >,
 }
 
 impl<'a> BuildingBlockFactory<'a> {
@@ -99,6 +132,7 @@ impl<'a> BuildingBlockFactory<'a> {
             dof_handler: None,
             element: None,
             sparsity_pattern: None,
+            shape_matrix: None,
         }
     }
 
@@ -204,6 +238,32 @@ impl<'a> BuildingBlockFactory<'a> {
 
     fn set_finite_element(&mut self, block: BlockGetter<'a, FiniteElement>) {
         self.element = Some(block);
+    }
+
+    pub fn shape_matrix<'b: 'a>(
+        &self,
+        name: &str,
+        config: &ShapeMatrixConfig<'b>,
+    ) -> Result<BuildingBlock, BuildingBlockError> {
+        if self.shape_matrix.is_none() {
+            Err(BuildingBlockError::BlockMissing(
+                "shape_matrix".to_string(),
+                self.name.clone(),
+            ))?
+        }
+        let matrix = self.matrix(name, &config.matrix_config)?;
+        Ok(self.shape_matrix.unwrap()(name, matrix, config)?)
+    }
+
+    pub fn set_shape_matrix(
+        &mut self,
+        block: &'a dyn Fn(
+            &str,
+            BuildingBlock,
+            &ShapeMatrixConfig,
+        ) -> Result<BuildingBlock, BuildingBlockError>,
+    ) {
+        self.shape_matrix = Some(block);
     }
 }
 

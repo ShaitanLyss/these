@@ -1,10 +1,8 @@
-use std::fmt::format;
-
 use crate::codegen::input_schema::{FiniteElement, mesh::HyperCubeMesh};
 
 use super::{
-    BuildingBlock, BuildingBlockError, BuildingBlockFactory, DofHandlerConfig,
-    SparsityPatternConfig, VectorConfig,
+    BuildingBlock, BuildingBlockError, BuildingBlockFactory, DofHandlerConfig, MatrixConfig,
+    ShapeMatrixConfig, SparsityPatternConfig, VectorConfig,
 };
 
 pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
@@ -82,9 +80,7 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
                 FiniteElement::Q3 => 3,
             }
         ));
-        block
-            .data
-            .push(format!("const FE_Q<dim> {name}"));
+        block.data.push(format!("const FE_Q<dim> {name}"));
         Ok(block)
     });
 
@@ -94,7 +90,6 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
 
         block.add_includes(&[
             "deal.II/lac/dynamic_sparsity_pattern.h",
-            "deal.II/lac/sparse_matrix.h",
             "deal.II/lac/sparsity_pattern.h",
             "deal.II/dofs/dof_tools.h",
         ]);
@@ -108,6 +103,29 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
         block.additional_names.insert(dsp);
 
         Ok(block)
+    });
+
+    factory.set_matrix(&|name, MatrixConfig { sparsity_pattern }| {
+        let mut block = BuildingBlock::new();
+        block.add_includes(&["deal.II/lac/sparse_matrix.h"]);
+
+        block.push_data(format!("SparseMatrix<data_type> {name}"));
+        block.push_setup([format!("{name}.reinit({sparsity_pattern})")]);
+
+        Ok(block)
+    });
+
+    factory.set_shape_matrix(&|name, mut matrix, ShapeMatrixConfig { dof_handler, element, matrix_config:_, kind }| {
+
+        matrix.add_includes(&[
+            "deal.II/numerics/matrix_creator.h",
+            "deal.II/base/quadrature_lib.h",
+
+        ]);
+        matrix.push_setup([
+                    format!("MatrixCreator::create_{kind}_matrix({dof_handler}, QGauss<2>({element}.degree + 1), {name})")
+        ]);
+        Ok(matrix)
     });
 
     factory
