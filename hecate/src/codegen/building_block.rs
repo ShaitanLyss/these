@@ -142,13 +142,7 @@ pub struct BuildingBlockFactory<'a> {
     dof_handler: Option<block_getter!(DofHandlerConfig)>,
     element: Option<block_getter!(FiniteElement)>,
     sparsity_pattern: Option<block_getter!(SparsityPatternConfig)>,
-    shape_matrix: Option<
-        &'a dyn Fn(
-            &str,
-            BuildingBlock,
-            &ShapeMatrixConfig,
-        ) -> BlockRes,
-    >,
+    shape_matrix: Option<&'a dyn Fn(&str, BuildingBlock, &ShapeMatrixConfig) -> BlockRes>,
     solve_unknown: Option<block_getter!(SolveUnknownConfig)>,
 }
 
@@ -171,11 +165,7 @@ impl<'a> BuildingBlockFactory<'a> {
         self.vector = Some(block);
     }
 
-    pub fn vector<'b: 'a>(
-        &self,
-        name: &str,
-        config: &VectorConfig<'b>,
-    ) -> BlockRes {
+    pub fn vector<'b: 'a>(&self, name: &str, config: &VectorConfig<'b>) -> BlockRes {
         if self.vector.is_none() {
             Err(BuildingBlockError::BlockMissing(
                 "vector".to_string(),
@@ -188,11 +178,7 @@ impl<'a> BuildingBlockFactory<'a> {
     pub fn set_dof_handler(&mut self, block: block_getter!(DofHandlerConfig)) {
         self.dof_handler = Some(block);
     }
-    pub fn dof_handler<'b: 'a>(
-        &self,
-        name: &str,
-        config: &DofHandlerConfig<'b>,
-    ) -> BlockRes {
+    pub fn dof_handler<'b: 'a>(&self, name: &str, config: &DofHandlerConfig<'b>) -> BlockRes {
         if self.dof_handler.is_none() {
             Err(BuildingBlockError::BlockMissing(
                 "dof_handler".to_string(),
@@ -220,11 +206,7 @@ impl<'a> BuildingBlockFactory<'a> {
         self.sparsity_pattern = Some(block);
     }
 
-    pub fn matrix(
-        &self,
-        name: &str,
-        config: &MatrixConfig<'_>,
-    ) -> BlockRes {
+    pub fn matrix(&self, name: &str, config: &MatrixConfig<'_>) -> BlockRes {
         if self.matrix.is_none() {
             Err(BuildingBlockError::BlockMissing(
                 "matrix".to_string(),
@@ -242,11 +224,7 @@ impl<'a> BuildingBlockFactory<'a> {
         self.mesh.insert(r#type.to_string(), block);
     }
 
-    pub fn mesh(
-        &self,
-        name: &str,
-        config: &'a dyn Mesh,
-    ) -> BlockRes {
+    pub fn mesh(&self, name: &str, config: &'a dyn Mesh) -> BlockRes {
         let r#type = config.typetag_name();
         Ok(self.mesh.get(r#type).ok_or(
             BuildingBlockError::BlockMissing(r#type.to_string(), self.name.clone()),
@@ -271,11 +249,7 @@ impl<'a> BuildingBlockFactory<'a> {
         self.element = Some(block);
     }
 
-    pub fn shape_matrix<'b: 'a>(
-        &self,
-        name: &str,
-        config: &ShapeMatrixConfig<'b>,
-    ) -> BlockRes {
+    pub fn shape_matrix<'b: 'a>(&self, name: &str, config: &ShapeMatrixConfig<'b>) -> BlockRes {
         if self.shape_matrix.is_none() {
             Err(BuildingBlockError::BlockMissing(
                 "shape_matrix".to_string(),
@@ -288,20 +262,12 @@ impl<'a> BuildingBlockFactory<'a> {
 
     pub fn set_shape_matrix(
         &mut self,
-        block: &'a dyn Fn(
-            &str,
-            BuildingBlock,
-            &ShapeMatrixConfig,
-        ) -> BlockRes,
+        block: &'a dyn Fn(&str, BuildingBlock, &ShapeMatrixConfig) -> BlockRes,
     ) {
         self.shape_matrix = Some(block);
     }
 
-    pub fn solve_unknown(
-        &self,
-        name: &str,
-        config: &SolveUnknownConfig,
-    ) -> BlockRes {
+    pub fn solve_unknown(&self, name: &str, config: &SolveUnknownConfig) -> BlockRes {
         if self.solve_unknown.is_none() {
             Err(BuildingBlockError::BlockMissing(
                 "solve_unknown".to_string(),

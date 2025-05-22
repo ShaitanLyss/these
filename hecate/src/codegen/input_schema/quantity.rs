@@ -23,7 +23,6 @@ pub struct Quantity<L> {
     parsed: L,
 }
 
-
 impl Time {
     pub fn seconds(&self) -> f64 {
         self.parsed.get::<uom::si::time::second>()
