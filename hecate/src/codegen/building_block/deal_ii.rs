@@ -302,7 +302,9 @@ fn vec_code_gen(
                     if coeff.is_one() {
                         format!("{m}.vmult({target}, {v});  // {target} = {expr}")
                     } else {
-                        format!("{m}.vmult({target}, {v}); {target} *= {coeff_cpp};  // {target} = {expr}")
+                        format!(
+                            "{m}.vmult({target}, {v}); {target} *= {coeff_cpp};  // {target} = {expr}"
+                        )
                     }
                 }
                 [first, rest @ ..] => {

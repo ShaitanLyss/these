@@ -1,4 +1,4 @@
-use num::{integer::gcd, NumCast};
+use num::{NumCast, integer::gcd};
 
 use super::*;
 
@@ -267,7 +267,6 @@ impl<N: NumCast> std::ops::Sub<N> for Rational {
         let rhs: Rational = rhs.to_i32().unwrap().into();
 
         (self - rhs).simplify()
-        
     }
 }
 
