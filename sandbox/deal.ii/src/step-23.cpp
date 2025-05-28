@@ -219,7 +219,7 @@ template <int dim> void WaveEquation<dim>::run() {
               << std::endl;
     mass_matrix.vmult(system_rhs, old_solution_u);
 
-    mass_matrix.vmult(tmp, old_solution_v);
+    mass_matrix.vmult(tmp,  old_solution_v);
     system_rhs.add(time_step, tmp);
 
     laplace_matrix.vmult(tmp, old_solution_u);

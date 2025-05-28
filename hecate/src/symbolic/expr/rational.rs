@@ -1,4 +1,4 @@
-use num::integer::gcd;
+use num::{integer::gcd, NumCast};
 
 use super::*;
 
@@ -30,6 +30,10 @@ impl Expr for Rational {
 
     fn str(&self) -> String {
         format!("{}/{}", self.num, self.denom)
+    }
+
+    fn to_cpp(&self) -> String {
+        format!("{}./{}.", self.num, self.denom)
     }
 
     fn get_ref<'a>(&'a self) -> &'a dyn Expr {
@@ -242,6 +246,28 @@ impl std::ops::Neg for &Rational {
             num: -self.num,
             denom: self.denom,
         }
+    }
+}
+
+impl std::ops::Sub for Rational {
+    type Output = Rational;
+
+    fn sub(self, rhs: Rational) -> Self::Output {
+        Rational {
+            num: self.num * rhs.denom - rhs.num * self.denom,
+            denom: self.denom * rhs.denom,
+        }
+    }
+}
+
+impl<N: NumCast> std::ops::Sub<N> for Rational {
+    type Output = Box<dyn Expr>;
+
+    fn sub(self, rhs: N) -> Self::Output {
+        let rhs: Rational = rhs.to_i32().unwrap().into();
+
+        (self - rhs).simplify()
+        
     }
 }
 

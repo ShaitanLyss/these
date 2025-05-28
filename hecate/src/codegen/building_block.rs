@@ -10,6 +10,8 @@ use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::Equation;
+
 use super::input_schema::{FiniteElement, mesh::Mesh};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +23,7 @@ pub struct BuildingBlock {
     pub constructor: Vec<String>,
     pub methods_defs: Vec<String>,
     pub methods_impls: Vec<String>,
+    pub main: Vec<String>,
 }
 
 impl BuildingBlock {
@@ -33,6 +36,7 @@ impl BuildingBlock {
             constructor: Vec::new(),
             methods_defs: Vec::new(),
             methods_impls: Vec::new(),
+            main: Vec::new(),
         }
     }
 
@@ -125,6 +129,7 @@ pub enum Block<'a> {
     Matrix(&'a MatrixConfig<'a>),
     Vector(&'a VectorConfig<'a>),
     SolveUnknown(&'a SolveUnknownConfig<'a>),
+    EquationSetup(&'a Equation),
 }
 
 pub struct SolveUnknownConfig<'a> {
@@ -144,6 +149,8 @@ pub struct BuildingBlockFactory<'a> {
     sparsity_pattern: Option<block_getter!(SparsityPatternConfig)>,
     shape_matrix: Option<&'a dyn Fn(&str, BuildingBlock, &ShapeMatrixConfig) -> BlockRes>,
     solve_unknown: Option<block_getter!(SolveUnknownConfig)>,
+    equation_setup: Option<block_getter!(Equation)>,
+    call: Option<block_getter!([&str])>,
 }
 
 impl<'a> BuildingBlockFactory<'a> {
@@ -158,6 +165,13 @@ impl<'a> BuildingBlockFactory<'a> {
             sparsity_pattern: None,
             shape_matrix: None,
             solve_unknown: None,
+            equation_setup: None,
+            call: Some(&|name, args| {
+                let mut block = BuildingBlock::new();
+                block.main.push(format!("{}({});", name, args.join(", ")));
+
+                Ok(block)
+            }),
         }
     }
 
@@ -279,6 +293,34 @@ impl<'a> BuildingBlockFactory<'a> {
 
     pub fn set_solve_unknown(&mut self, block: block_getter!(SolveUnknownConfig)) {
         self.solve_unknown = Some(block);
+    }
+
+    pub fn equation_setup(&self, name: &str, config: &Equation) -> BlockRes {
+        if self.equation_setup.is_none() {
+            Err(BuildingBlockError::BlockMissing(
+                "equation_setup".to_string(),
+                self.name.clone(),
+            ))?
+        }
+        Ok(self.equation_setup.unwrap()(name, config)?)
+    }
+
+    pub fn set_equation_setup(&mut self, block: block_getter!(Equation)) {
+        self.equation_setup = Some(block);
+    }
+
+    pub fn call(&self, name: &str, args: &[&str]) -> BlockRes {
+        if self.call.is_none() {
+            Err(BuildingBlockError::BlockMissing(
+                "call".to_string(),
+                self.name.clone(),
+            ))?
+        }
+        Ok(self.call.unwrap()(name, args)?)
+    }
+
+    pub fn set_call(&mut self, block: block_getter!([&str])) {
+        self.call = Some(block);
     }
 }
 

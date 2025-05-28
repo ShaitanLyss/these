@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use super::*;
 use crate::symbol;
 
@@ -322,5 +324,33 @@ impl System {
             .map(|v| v.len())
             .reduce(|acc, e| acc + e)
             .unwrap()
+    }
+
+    pub fn eqs_in_solving_order(&self) -> impl Iterator<Item = &Equation> {
+        fn get_rhs_unknowns(system: &System, eq: &Equation) -> impl Iterator<Item = String> {
+            system.unknowns.iter().filter_map(|unknown| {
+                if eq.has(unknown) {
+                    Some(unknown.str())
+                } else {
+                    None
+                }
+            })
+        }
+
+        self.equations
+            .iter()
+            .map(|e| (e, get_rhs_unknowns(self, e).count()))
+            .sorted_by_key(|e| e.1)
+            .map(|(e, _)| e)
+    }
+
+    pub fn equation_lhs_unknowns(&self, equation: &Equation) -> impl Iterator<Item = String> {
+        self.unknowns.iter().filter_map(|unknown| {
+            if equation.has(unknown) {
+                Some(unknown.str())
+            } else {
+                None
+            }
+        })
     }
 }

@@ -292,6 +292,10 @@ pub trait Expr: Arg + Sync + Send {
         None
     }
 
+    fn to_cpp(&self) -> String {
+        self.str()
+    }
+
     fn simplify(&self) -> Box<dyn Expr> {
         self.from_args(
             self.args()

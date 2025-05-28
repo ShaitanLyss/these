@@ -1,4 +1,5 @@
 use indexmap::IndexMap;
+use itertools::Itertools;
 
 use super::*;
 
@@ -45,6 +46,20 @@ impl Expr for Mul {
             })
             .collect();
         format!("{}", pieces.join(""))
+    }
+
+    fn to_cpp(&self) -> String {
+        self.operands
+            .iter()
+            .enumerate()
+            .map(|(i, op)| match op.known_expr() {
+                KnownExpr::Integer(Integer { value: -1 }) if i == 0 => "-".to_string(),
+                KnownExpr::Add(_) if self.operands.len() > 1 => format!("({})", op.to_cpp()),
+                KnownExpr::Pow(pow) if self.operands.len() > 1 => format!("({})", pow.to_cpp()),
+                KnownExpr::Rational(r) if self.operands.len() > 1 => format!("({})", r.to_cpp()),
+                _ => op.to_cpp(),
+            })
+            .join(" * ")
     }
 
     fn expand(&self) -> Box<dyn Expr> {

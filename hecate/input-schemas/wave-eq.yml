@@ -5,7 +5,6 @@ meshes:
         subdivisions: 5
         show_info: true
 
-
 equations:
     wave: diff(u, t, 2) - c^2 * laplacian * u = f
 
@@ -26,15 +25,18 @@ solve:
 unknowns:
   u:
     initial: u0
-    boundary: u1
+    boundary: g
     derivative:
       initial: v0
-      boundary: v1
 
 
 functions:
-    f: 
+    f: 0
     u0: 0 
-    u1:
     v0: 0
-    v1:
+    g:
+      - expr: sin(4 * pi * t)
+        t: 0 .. 0.5 s
+        x: -1 m
+        y: -0.33 .. 0.33 m
+      - expr: 0

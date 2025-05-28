@@ -7,7 +7,7 @@ pub use symbolic::*;
 pub mod codegen;
 pub mod js;
 pub use codegen::BuildingBlock;
-use std::error::Error as StdError;
+pub use std::error::Error as StdError;
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
