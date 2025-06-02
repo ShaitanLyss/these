@@ -309,7 +309,7 @@ impl InputSchema {
             .to_constant_mesh()
             .simplify();
 
-        // println!("/*\n{system}\n*/\n");
+        println!("/*\n{system}\n*/\n");
 
         let factory = deal_ii_factory();
         let mut blocks = BuildingBlockCollector::new(&factory);

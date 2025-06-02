@@ -42,24 +42,45 @@ impl Expr for Mul {
                 KnownExpr::Add(_) if self.operands.len() > 1 => format!("({})", op.str()),
                 KnownExpr::Pow(pow) if self.operands.len() > 1 => format!("({})", pow.str()),
                 KnownExpr::Rational(r) if self.operands.len() > 1 => format!("({})", r.str()),
+                KnownExpr::Symbol(Symbol { name })
+                    if i < self.operands.len() - 1 && name.len() > 1 =>
+                {
+                    format!("{name}.")
+                }
                 _ => op.str(),
             })
             .collect();
         format!("{}", pieces.join(""))
     }
 
+    fn is_number(&self) -> bool {
+        self.operands.iter().all(|op| op.is_number())
+    }
+
     fn to_cpp(&self) -> String {
-        self.operands
-            .iter()
-            .enumerate()
-            .map(|(i, op)| match op.known_expr() {
-                KnownExpr::Integer(Integer { value: -1 }) if i == 0 => "-".to_string(),
-                KnownExpr::Add(_) if self.operands.len() > 1 => format!("({})", op.to_cpp()),
-                KnownExpr::Pow(pow) if self.operands.len() > 1 => format!("({})", pow.to_cpp()),
-                KnownExpr::Rational(r) if self.operands.len() > 1 => format!("({})", r.to_cpp()),
-                _ => op.to_cpp(),
-            })
-            .join(" * ")
+        let mut ops = self.operands.iter().peekable();
+        let mut res = String::new();
+        // If expression starts with -1, transform it into -
+        if let Some(first_op) = ops.peek()
+            && first_op.is_neg_one()
+        {
+            ops.next();
+            res += "-";
+        }
+        ops.map(|op| match op.known_expr() {
+            KnownExpr::Add(_) if self.operands.len() > 1 => format!("({})", op.to_cpp()),
+            KnownExpr::Pow(pow) if self.operands.len() > 1 => format!("({})", pow.to_cpp()),
+            KnownExpr::Rational(r) if self.operands.len() > 1 => format!("({})", r.to_cpp()),
+            _ => op.to_cpp(),
+        })
+        .enumerate()
+        .for_each(|(i, op)| {
+            if i > 0 {
+                res += " * ";
+            }
+            res += &op
+        });
+        res
     }
 
     fn expand(&self) -> Box<dyn Expr> {

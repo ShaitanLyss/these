@@ -33,6 +33,10 @@ impl Expr for Pow {
         Box::new(self.clone())
     }
 
+    fn is_number(&self) -> bool {
+        self.base.is_number() && self.exponent.is_number()
+    }
+
     fn str(&self) -> String {
         match (
             self.base.known_expr(),
@@ -51,6 +55,36 @@ impl Expr for Pow {
 
     fn is_one(&self) -> bool {
         self.exponent.is_neg_one() && self.base.is_one() || self.exponent.is_zero()
+    }
+
+    fn to_cpp(&self) -> String {
+        let exponent = &self.exponent;
+        if exponent.is_zero() {
+            String::from("1")
+        } else if exponent.is_one() {
+            self.base.to_cpp()
+        } else if exponent.is_neg_one() {
+            format!("1 / {}", self.base.to_cpp())
+        } else {
+            if let KnownExpr::Integer(Integer { value: n }) = exponent.known_expr()
+                && *n > 0
+            {
+                let n = *n as usize;
+                let base_cpp = self.base.to_cpp();
+
+                let mut res = String::with_capacity((base_cpp.len() + 3) * (n - 1) + base_cpp.len() );
+                res += &base_cpp;
+                for _ in 1..n {
+                    res += " * ";
+                    res += &base_cpp;
+                }
+                res
+
+
+            } else {
+                format!("pow({}, {})", self.base.to_cpp(), self.exponent.to_cpp())
+            }
+        }
     }
 
     fn simplify(&self) -> Box<dyn Expr> {
