@@ -338,7 +338,7 @@ fn vec_code_gen(
                 res += "\n";
 
                 for op in operands.iter().skip(1) {
-                    res += &format!("// {target} += {op}\n");
+                    res += &format!("\n// {target} += {op}\n");
                     if vectors.contains(&op.get_ref()) {
                         res += &format!("{target} += {op};");
                         continue;
@@ -385,11 +385,10 @@ fn vec_code_gen(
                         partial_res += "\n";
                         let coeff = &captures[2];
                         if coeff == "-1" {
-                            partial_res += &format!("// {target} -= {tmp_target}\n");
+                            partial_res += &format!("{target} -= {tmp_target};");
                         } else {
-                            partial_res += &format!("// {target} += {coeff} * {tmp_target}\n");
+                            partial_res += &format!("{target}.add({coeff}, {tmp_target});");
                         }
-                        partial_res += &format!("{target}.add({coeff}, {tmp_target});");
                     } else {
                         // partial_res += "\n";
                         partial_res += &tmp;
@@ -494,7 +493,9 @@ fn vec_code_gen(
                         format!("{target} = {a};")
                     } else {
                         let coeff_cpp = coeff.to_cpp();
-                        format!("// {target} = {coeff} * {a}\n{target}.equ({coeff_cpp}, {a});")
+                        format!("{}{target}.equ({coeff_cpp}, {a});", if depth ==0{
+                            format!("// {target} = {coeff} * {a}\n")
+                        } else {String::new()})
                     }).into()
                 }
                 [Kind::Mat(m)] => {
@@ -542,12 +543,12 @@ fn vec_code_gen(
                             }
                             (Matrix, Kind::Mat(m)) => {
                                 let m_cpp = m.to_cpp();
-                                res *= &StringWKind(format!("{source}.mmult({target}, {m_cpp});\n"), Matrix);
+                                res *= &StringWKind(format!("{source}.mmult({target}, {m_cpp});"), Matrix);
                             }
                             (Matrix, Kind::Vec(v)) => {
                                 let v_cpp = v.to_cpp();
                                 res += &format!("// {target} = {source} * {v}\n");
-                                res *= &StringWKind(format!("{source}.vmult({target}, {v_cpp});\n"), Vector);
+                                res *= &StringWKind(format!("{source}.vmult({target}, {v_cpp});"), Vector);
                             }
                             _ => todo!("mul many: {:?} {kind:?}", res.1)
                         }
@@ -751,8 +752,8 @@ rhs.add(-k, tmp);";
 // mtmp = -(1 / k)mass_mat + (1/4)(c^2)laplace_mat
 // mtmp = -(1 / k) * mass_mat
 mtmp = mass_mat; mtmp *= -(1 / k);
+
 // mtmp += (1/4)(c^2)laplace_mat
-// mtmp += (1./4.) * (c * c) * laplace_mat
 mtmp.add((1./4.) * (c * c), laplace_mat);
 
 // rhs = mtmp * u_prev
@@ -760,14 +761,13 @@ mtmp.vmult(rhs, u_prev);
 
 // rhs += -mass_mat.v_prev
 mass_mat.vmult(vtmp, v_prev);
-// rhs -= vtmp
-rhs.add(-1, vtmp);
+rhs -= vtmp;
+
 // rhs += (-1/4)kf_prev
-// vtmp = (-1/4)k * f_prev
 vtmp.equ((-1./4.) * k, f_prev);
 rhs += vtmp;
+
 // rhs += (-1/4)kf
-// vtmp = (-1/4)k * f
 vtmp.equ((-1./4.) * k, f);
 rhs += vtmp;
 ".trim();
