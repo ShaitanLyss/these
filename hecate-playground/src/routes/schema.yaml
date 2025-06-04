@@ -6,15 +6,15 @@ meshes:
         show_info: true
 
 equations:
-    wave: diff(u, t, 2) - c^2 * laplacian * u = 1
+    wave: diff(u, t, 2) - c^2 * laplacian * u = f
 
 time: 0 .. 5 s
 time_step: 0.1 s
 
 parameters:
-  c: 
-    type: speed
-    value: 1
+    c: 
+      type: speed
+      value: 1
 
 solve:
   equations:
@@ -28,7 +28,6 @@ unknowns:
     boundary: g
     derivative:
       initial: v0
-
 
 functions:
     f: 0

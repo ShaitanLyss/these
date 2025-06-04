@@ -1,0 +1,49 @@
+{
+	"name": "hecate-playground",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"prepare": "svelte-kit sync || echo ''",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"format": "prettier --write .",
+		"lint": "prettier --check ."
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-auto": "^6.0.1",
+		"@sveltejs/kit": "^2.21.2",
+		"@sveltejs/vite-plugin-svelte": "^5.1.0",
+		"@tailwindcss/vite": "^4.1.8",
+		"daisyui": "^5.0.43",
+		"highlight.js": "^11.11.1",
+		"prettier": "^3.5.3",
+		"prettier-plugin-svelte": "^3.4.0",
+		"prettier-plugin-tailwindcss": "^0.6.12",
+		"svelte": "^5.33.14",
+		"svelte-check": "^4.2.1",
+		"svelte-rune-highlight": "^0.6.6",
+		"tailwindcss": "^4.1.8",
+		"typescript": "^5.8.3",
+		"vite": "^6.3.5"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild"
+		]
+	},
+	"dependencies": {
+		"@codemirror/lang-yaml": "^6.1.2",
+		"@codemirror/theme-one-dark": "^6.1.2",
+		"@selenial/hecate": "^0.1.6",
+		"@selenial/terraform-tactics-rs": "^0.1.0",
+		"svelte-codemirror-editor": "^1.4.1",
+		"thememirror": "^2.0.1",
+		"vite-plugin-top-level-await": "^1.5.0",
+		"vite-plugin-wasm": "^3.4.1",
+		"vite-plugin-wasm-pack": "^0.1.12"
+	}
+}

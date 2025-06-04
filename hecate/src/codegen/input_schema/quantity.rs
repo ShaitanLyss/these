@@ -13,6 +13,7 @@ use serde::de::Visitor;
 use serde::{Deserialize, Serialize, de::Error};
 use serde_yaml::Value;
 use std::fmt::{Debug, Display};
+use std::ops::Deref;
 use std::str::FromStr;
 use thiserror::Error;
 use uom::str::ParseQuantityError as UomParseError;
@@ -89,6 +90,13 @@ pub enum ParseQuantityError {
     InvalidUnitFormat(#[from] FormatUnitError),
     #[error("quantity not recognized: '{0}'")]
     Unrecognized(#[from] UomParseError),
+}
+
+impl<T> Deref for Quantity<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.parsed
+    }
 }
 
 impl<T> FromStr for Quantity<T>

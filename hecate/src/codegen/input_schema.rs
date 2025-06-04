@@ -17,9 +17,9 @@ mod reference;
 mod unit;
 
 use dyn_clone::DynClone;
-use quantity::{Length, RANGE_PATTERN, Time};
+use quantity::{Length, Speed, Time, RANGE_PATTERN};
 
-use mesh::Mesh;
+use mesh::{Mesh, MeshEnum};
 use range::Range;
 use serde::{Deserialize, Serialize};
 use tera::Tera;
@@ -30,14 +30,32 @@ use crate::{
 };
 
 #[typetag::serde(tag = "type")]
-pub trait QuantityTrait: DynClone + Debug {}
+pub trait QuantityTrait: DynClone + Debug {
+    fn si_value(&self) -> f64;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
+pub enum QuantityEnum {
+    #[serde(rename = "speed")]
+    Speed(Speed),
+}
+
+impl QuantityEnum {
+    pub fn si_value(&self) -> f64 {
+        match self {
+            QuantityEnum::Speed(v) => v.si_value(),
+        }
+    }
+}
 
 dyn_clone::clone_trait_object!(QuantityTrait);
 
 use uom::si::f64 as si;
 
 use super::building_block::{
-    Block, BuildingBlockFactory, ShapeMatrix, ShapeMatrixConfig, SolveUnknownConfig,
+    Block, BlockRes, BuildingBlockFactory, EquationSetupConfig, ShapeMatrix, ShapeMatrixConfig,
+    SolveUnknownConfig,
 };
 use super::{
     BuildingBlock,
@@ -47,7 +65,11 @@ use super::{
 };
 
 #[typetag::serde(name = "speed")]
-impl QuantityTrait for si::Velocity {}
+impl QuantityTrait for si::Velocity {
+    fn si_value(&self) -> f64 {
+        self.get::<uom::si::velocity::meter_per_second>()
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum FiniteElement {
@@ -65,14 +87,21 @@ pub struct Solve {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InputSchema {
-    pub meshes: HashMap<String, Box<dyn Mesh>>,
+    pub meshes: HashMap<String, MeshEnum>,
     pub equations: HashMap<String, Equation>,
     pub time: Range<Time>,
     pub time_step: Time,
-    pub parameters: HashMap<String, Box<dyn QuantityTrait>>,
+    pub parameters: HashMap<String, QuantityEnum>,
     pub unknowns: HashMap<String, Unknown>,
     pub functions: HashMap<String, FunctionDef>,
     pub solve: Solve,
+}
+
+
+impl InputSchema {
+    pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
+        serde_yaml::from_str(yaml)
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -238,6 +267,8 @@ pub enum CodeGenError {
     TemplatingError(#[from] tera::Error),
     #[error("missing solver for unknown: {0}")]
     MissingSolver(String),
+    #[error("invalid yaml input schema")]
+    InvalidYaml(#[from] serde_yaml::Error),
 }
 
 lazy_static! {
@@ -261,6 +292,15 @@ lazy_static! {
 
 impl InputSchema {
     pub fn generate_cpp_sources(&self) -> Result<String, CodeGenError> {
+        let factory = deal_ii_factory();
+        let mut blocks = BuildingBlockCollector::new(&factory);
+        blocks.newline();
+        blocks.comment("Parameters");
+        for (name, value) in &self.parameters {
+            blocks.create(name, Block::Parameter(value.si_value()))?;
+        }
+        blocks.newline();
+
         let Solve {
             equations,
             mesh,
@@ -311,9 +351,6 @@ impl InputSchema {
 
         println!("/*\n{system}\n*/\n");
 
-        let factory = deal_ii_factory();
-        let mut blocks = BuildingBlockCollector::new(&factory);
-
         let mesh = blocks.insert("mesh", factory.mesh("mesh", mesh.get_ref())?)?;
 
         let element = blocks.insert("element", factory.finite_element("element", element)?)?;
@@ -323,17 +360,16 @@ impl InputSchema {
             factory.dof_handler("dof_handler", &DofHandlerConfig { mesh, element })?,
         )?;
 
-        let vector_config = VectorConfig { dof_handler };
+        let vector_config = VectorConfig {
+            dof_handler,
+       };
 
-        let mut vectors: HashMap<String, String> = HashMap::with_capacity(system.num_vectors());
+        let mut vectors: HashMap<&dyn Expr, String> = HashMap::with_capacity(system.num_vectors());
 
-        for vector_symbol in system.vectors() {
-            let vector = &vector_symbol
-                .to_lowercase()
-                .replace("^n-1", "_prev")
-                .replace("^n", "");
-            vectors.insert(vector_symbol.to_string(), vector.to_string());
-            blocks.insert(vector, factory.vector(vector, &vector_config)?)?;
+        for vector in system.vectors() {
+            let vector_cpp = vector.to_cpp();
+            blocks.insert(&vector_cpp, factory.vector(&vector_cpp, &vector_config)?)?;
+            vectors.insert(vector, vector_cpp.clone());
         }
 
         let sparsity_pattern = blocks.insert(
@@ -341,20 +377,22 @@ impl InputSchema {
             factory.sparsity_pattern("sparsity_pattern", &SparsityPatternConfig { dof_handler })?,
         )?;
 
-        let mut unknowns_matrices: HashMap<String, String> =
+        let mut unknowns_matrices: HashMap<&dyn Expr, String> =
             HashMap::with_capacity(system.unknowns.len());
 
-        let matrix_config = MatrixConfig { sparsity_pattern };
+        let matrix_config = MatrixConfig {
+            sparsity_pattern,
+        };
         let rhs = blocks.create("rhs", Block::Vector(&vector_config))?;
-        let mut unknown_solvers: HashMap<String, String> = HashMap::new();
+        let mut unknown_solvers: HashMap<&dyn Expr, String> = HashMap::new();
         for unknown in &system.unknowns {
-            let unknown = unknown.str();
-            let name = unknown.to_lowercase().replace("^n", "");
-            let mat_name = format!("matrix_{}", &name);
+            let unknown = unknown.get_ref();
+            let unknown_cpp = unknown.to_cpp();
+            let mat_name = format!("matrix_{unknown_cpp}");
             let unknown_vec = &vectors[&unknown];
 
             unknowns_matrices.insert(
-                unknown.clone(),
+                unknown,
                 blocks
                     .create(&mat_name, Block::Matrix(&matrix_config))?
                     .to_string(),
@@ -364,7 +402,7 @@ impl InputSchema {
                 unknown,
                 blocks
                     .create(
-                        &format!("solve_{name}"),
+                        &format!("solve_{unknown_cpp}"),
                         Block::SolveUnknown(&SolveUnknownConfig {
                             rhs,
                             unknown_vec,
@@ -400,24 +438,38 @@ impl InputSchema {
             )?,
         )?;
 
-        let mut solved_unknowns: HashSet<String> = HashSet::new();
+        let mut solved_unknowns: HashSet<&dyn Expr> = HashSet::new();
+        let vectors: &Vec<_> = &system.vectors().collect();
+        let matrixes: &Vec<_> = &system.matrixes().collect();
         for (i, equation) in system.eqs_in_solving_order().enumerate() {
-            blocks.create(&format!("equation_{i}"), Block::EquationSetup(equation))?;
+            // let equation = &equation.subs(&[[Symbol::new_box("k"), Symbol::new_box("time_step")]]).as_eq().expect("equation");
             for unknown in system.equation_lhs_unknowns(equation) {
                 if solved_unknowns.contains(&unknown) {
                     continue;
                 }
+                blocks.create(
+                    &format!("equation_{i}"),
+                    Block::EquationSetup(&EquationSetupConfig {
+                        equation,
+                        unknown,
+                        vectors,
+                        matrixes,
+                    }),
+                )?;
+
+                blocks.newline();
                 blocks.call(
                     unknown_solvers
                         .get(&unknown)
-                        .ok_or_else(|| CodeGenError::MissingSolver(unknown.clone()))?,
+                        .ok_or_else(|| CodeGenError::MissingSolver(unknown.str()))?,
                     &[],
                 )?;
+                blocks.newline();
                 solved_unknowns.insert(unknown);
             }
         }
 
-        let mut context: tera::Context = blocks.collect().into();
+        let mut context: tera::Context = blocks.collect(dof_handler, sparsity_pattern)?.into();
         context.insert("time_start", &self.time.start.seconds());
         context.insert("time_end", &self.time.end.seconds());
         context.insert("time_step", &self.time_step.seconds());
@@ -444,6 +496,8 @@ impl From<BuildingBlock> for tera::Context {
             constructor,
             methods_defs,
             methods_impls,
+            additional_vectors: _,
+            additional_matrixes: _,
             main,
         } = block;
         context.insert(
@@ -453,6 +507,7 @@ impl From<BuildingBlock> for tera::Context {
                 .map(|s| format!("#include <{s}>"))
                 .join("\n"),
         );
+
         context.insert("data", &to_cpp_lines("  ", data));
         context.insert("setup", &to_cpp_lines("    ", setup));
         context.insert(
@@ -505,8 +560,41 @@ impl<'fa> BuildingBlockCollector<'fa> {
         self.blocks.insert(name.to_string(), block);
         return Ok(name);
     }
-    fn collect(self) -> BuildingBlock {
+    fn collect(mut self, dof_handler: &str, sparsity_pattern: &str) -> BlockRes {
         let mut res = BuildingBlock::new();
+
+        let mut additional_blocks: HashMap<String, BuildingBlock> = HashMap::new();
+
+        let tmp_vector_config = VectorConfig { dof_handler };
+        let tmp_matrix_config = MatrixConfig {
+            sparsity_pattern,
+        };
+        for (
+            _,
+            BuildingBlock {
+                additional_vectors,
+                additional_matrixes,
+                ..
+            },
+        ) in &self.blocks
+        {
+            for vector in additional_vectors {
+                if additional_blocks.contains_key(vector) {
+                    continue;
+                }
+                let block = self.factory.vector(vector, &tmp_vector_config)?;
+                additional_blocks.insert(vector.to_string(), block);
+            }
+            for matrix in additional_matrixes {
+                if additional_blocks.contains_key(matrix) {
+                    continue;
+                }
+                let block = self.factory.matrix(matrix, &tmp_matrix_config)?;
+                additional_blocks.insert(matrix.to_string(), block);
+            }
+        }
+
+        self.blocks.extend(additional_blocks);
 
         for (
             _,
@@ -519,6 +607,8 @@ impl<'fa> BuildingBlockCollector<'fa> {
                 methods_defs,
                 methods_impls,
                 main,
+                additional_vectors: _,
+                additional_matrixes: _,
             },
         ) in self.blocks
         {
@@ -531,7 +621,7 @@ impl<'fa> BuildingBlockCollector<'fa> {
             res.main.extend(main);
         }
 
-        res
+        Ok(res)
     }
 
     fn create<'na>(
@@ -547,7 +637,10 @@ impl<'fa> BuildingBlockCollector<'fa> {
                 Block::SolveUnknown(solve_unknown_config) => {
                     self.factory.solve_unknown(name, solve_unknown_config)?
                 }
-                Block::EquationSetup(equation) => self.factory.equation_setup(name, equation)?,
+                Block::EquationSetup(equation_setup_config) => {
+                    self.factory.equation_setup(name, equation_setup_config)?
+                }
+                Block::Parameter(value) => self.factory.parameter(name, value)?,
             },
         )?;
         Ok(name)
@@ -559,5 +652,19 @@ impl<'fa> BuildingBlockCollector<'fa> {
         self.blocks.insert(name, block);
 
         Ok(())
+    }
+
+    fn newline(&mut self) {
+        self.blocks.insert(
+            format!("newline#{}", self.blocks.len()),
+            self.factory.newline(),
+        );
+    }
+
+    fn comment(&mut self, content: &str) {
+        self.blocks.insert(
+            format!("comment#{}", self.blocks.len()),
+            self.factory.comment(content),
+        );
     }
 }

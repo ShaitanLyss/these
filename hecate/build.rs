@@ -5,6 +5,15 @@ use bindgen;
 use cmake;
 
 fn main() {
+
+    let target = env::var("TARGET").unwrap();
+
+    // Check if the target architecture is wasm32
+    if target.contains("wasm32") {
+        // TODO consider setting cdylib here
+        return;
+    }
+
     let dst = cmake::build("cpp");
     println!("cargo:rustc-link-search=native={}/lib", dst.display());
     println!("cargo:rustc-link-lib=static=hecatecpp");

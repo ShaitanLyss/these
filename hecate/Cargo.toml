@@ -1,18 +1,18 @@
 [package]
 name = "hecate"
-version = "0.1.0"
+version = "0.1.9"
 edition = "2024"
 
 [build-dependencies]
 bindgen = "0.71.1"
 cmake = "0.1.54"
 
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-clap = { version = "4.5.36", features = ["derive"] }
 derive-alias = "0.1.1"
-rquickjs = {  git = "https://github.com/DelSkayn/rquickjs.git", version = "0.9.0", features = ["futures", "macro", "loader"] }
-llrt_modules = { git = "https://github.com/awslabs/llrt.git", version = "0.5.1-beta", default-features = false, features = ["crypto", "console", "timers"] }
-tokio = { version = "1", features = ["full"] }
 schemars = "0.8.22"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
@@ -30,3 +30,11 @@ regex = "1.11.1"
 uom = { version = "0.37.0", default-features = false, features = ["std", "si", "serde", "f64"] }
 const_format = "0.2.34"
 num = "0.4.3"
+wasm-bindgen = "0.2.100"
+
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+clap = { version = "4.5.36", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+rquickjs = {  git = "https://github.com/DelSkayn/rquickjs.git", version = "0.9.0", features = ["futures", "macro", "loader"] }
+llrt_modules = { git = "https://github.com/awslabs/llrt.git", version = "0.5.1-beta", default-features = false, features = ["crypto", "console", "timers"] }

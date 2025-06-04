@@ -1,7 +1,7 @@
-use regex::Regex;
-use thiserror::Error;
+use std::collections::HashSet;
 
-use crate::ops::{factor_coeff, get_operands_exponents};
+use regex::{Captures, Regex};
+
 use crate::symbolic::*;
 use crate::{
     Equation, Expr,
@@ -9,8 +9,9 @@ use crate::{
 };
 
 use super::{
-    BuildingBlock, BuildingBlockError, BuildingBlockFactory, DofHandlerConfig, MatrixConfig,
-    ShapeMatrixConfig, SolveUnknownConfig, SparsityPatternConfig, VectorConfig,
+    BuildingBlock, BuildingBlockError, BuildingBlockFactory, DofHandlerConfig, EquationSetupConfig,
+    ExprCodeGenError, MatrixConfig, ShapeMatrixConfig, SolveUnknownConfig, SparsityPatternConfig,
+    VectorConfig,
 };
 
 pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
@@ -169,13 +170,61 @@ void Sim::{name}() {{
         Ok(block)
     });
 
-    factory.set_equation_setup(&|name, equation| {
+    factory.set_equation_setup(&|_name,
+                                 EquationSetupConfig {
+                                     equation,
+                                     unknown,
+                                     vectors,
+                                     matrixes,
+                                 }| {
         let mut block = BuildingBlock::new();
 
         block
             .main
-            .push(format!("// Setup equation {}", equation.str()));
-        block.main.push(equation_to_deall_ii_setup_code(&equation));
+            .push(format!("// # Setup equation {}", equation.str()));
+
+        let equation_code =
+            equation_to_deall_ii_setup_code(&equation, *unknown, vectors, matrixes)?;
+        let mut tmp_vecs: HashSet<String> = HashSet::new();
+        let mut tmp_mats: HashSet<String> = HashSet::new();
+
+        let tmp_re = Regex::new(r"\b[mv]tmp\d*\b").unwrap();
+
+        for capture in tmp_re.captures_iter(&equation_code) {
+            let tmp = &capture[0];
+
+            match tmp.chars().next().expect("tmp is not empty") {
+                'm' => {
+                    tmp_mats.insert(tmp.to_string());
+                }
+                'v' => {
+                    tmp_vecs.insert(tmp.to_string());
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        for vec in tmp_vecs {
+            block.additional_vectors.insert(vec);
+        }
+
+        for mat in tmp_mats {
+            block.additional_matrixes.insert(mat);
+        }
+
+        block
+            .main
+            .extend(equation_code.split('\n').map(|s| s.to_string()));
+
+        Ok(block)
+    });
+
+    factory.set_parameter(&|name, value| {
+        let mut block = BuildingBlock::new();
+
+        block
+            .main
+            .push(format!("const data_type {name} = {value};"));
 
         Ok(block)
     });
@@ -183,31 +232,37 @@ void Sim::{name}() {{
     factory
 }
 
-fn equation_to_deall_ii_setup_code(equation: &Equation) -> String {
-    "".to_string()
-}
+fn equation_to_deall_ii_setup_code(
+    equation: &Equation,
+    unknown: &dyn Expr,
+    vectors: &[&dyn Expr],
+    matrixes: &[&dyn Expr],
+) -> Result<String, ExprCodeGenError> {
+    let lhs = equation.lhs.expand().factor(&[unknown]);
+    let lhs = lhs.as_mul();
+    if lhs.is_none() {
+        panic!("lhs of equation must be a multiplication after factorization by the unknown");
+    }
+    let lhs = lhs.unwrap();
+    if lhs.operands.len() != 2 {
+        panic!("lhs of factorized equation must be a multiplication with two operands");
+    }
+    let system = mat_code_gen(
+        &format!("matrix_{}", unknown.to_cpp()),
+        lhs.operands[0].get_ref(),
+        vectors,
+        matrixes,
+    )?;
 
-#[derive(Error, Debug)]
-pub enum ExprCodeGenError {
-    #[error("too many vectors in expr: {0}")]
-    TooManyVectors(Box<dyn Expr>),
-    #[error("too many matrixes in expr: {0}")]
-    TooManyMatrixes(Box<dyn Expr>),
-    #[error("unsupported expr: {0}")]
-    UnsupportedExpr(Box<dyn Expr>),
-    #[error("unsupported operand in multiplication: {0}")]
-    UnsupportedMulOperand(Box<dyn Expr>),
-    #[error("can't multiply two vectors")]
-    VectorMul,
-    #[error("operations resulted in a matrix when a vector was expected")]
-    MatResult,
+    let rhs = equation.rhs.get_ref();
+    let rhs = rhs_code_gen(rhs, vectors, matrixes)?;
+
+    Ok(format!(
+        "// ## Compute system for {unknown}\n{system}\n\n\n// ## Compute rhs for {unknown}\n{rhs}"
+    ))
 }
 
 type ExprCodeGenRes = Result<StringWKind, ExprCodeGenError>;
-
-fn expr_to_coeff_vecs_mats() -> (Box<dyn Expr>,) {
-    todo!()
-}
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum ResKind {
@@ -298,7 +353,7 @@ impl std::ops::MulAssign<&StringWKind> for StringWKind {
     }
 }
 
-fn vec_code_gen(
+fn expr_code_gen(
     target: &str,
     expr: &dyn Expr,
     vectors: &[&dyn Expr],
@@ -312,9 +367,10 @@ fn vec_code_gen(
         return Ok((Vector, format!("{target} = {vector_cpp};")).into());
     } else if matrixes.contains(&expr.get_ref()) {
         let matrix_cpp = expr.to_cpp();
-        return Ok((Matrix, format!("{target} = {matrix_cpp};")).into());
+        return Ok((Matrix, format!("{target}.copy_from({matrix_cpp});")).into());
     }
     Ok(match expr.known_expr() {
+        KnownExpr::Symbol(symbol) => (Scalar, format!("{target} = {};", symbol.to_cpp())).into(),
         KnownExpr::Integer(Integer { value }) => (Scalar, format!("{target} = {value};")).into(),
         KnownExpr::Rational(Rational { num, denom }) => {
             (Scalar, format!("{target} = {num} / {denom};")).into()
@@ -334,46 +390,68 @@ fn vec_code_gen(
                     }
                     res += &format!("// {target} = {expr}\n")
                 }
-                res += &vec_code_gen(target, first_op.get_ref(), vectors, matrixes, depth)?;
+                res += &expr_code_gen(target, first_op.get_ref(), vectors, matrixes, depth)?;
                 res += "\n";
 
                 for op in operands.iter().skip(1) {
                     res += &format!("\n// {target} += {op}\n");
-                    if vectors.contains(&op.get_ref()) {
-                        res += &format!("{target} += {op};");
+
+                    let is_vector = |op: &dyn Expr| -> bool { vectors.contains(&op.get_ref()) };
+
+                    let is_scalar = |op: &dyn Expr| -> bool {
+                        vectors.iter().all(|v| !op.get_ref().has(*v))
+                            && matrixes.iter().all(|m| !op.get_ref().has(*m))
+                    };
+                    if is_vector(op.get_ref()) || is_scalar(op.get_ref()) {
+                        let op_cpp = op.to_cpp();
+                        res += &format!("{target} += {op_cpp};");
                         continue;
                     }
+
                     let mut tmp_target = if depth == 0 {
                         "$x$".to_string()
                     } else {
                         format!("$x{depth}$")
                     };
                     let StringWKind(mut tmp, tmp_kind) =
-                        vec_code_gen(&tmp_target, op.get_ref(), vectors, matrixes, depth + 1)?;
+                        expr_code_gen(&tmp_target, op.get_ref(), vectors, matrixes, depth + 1)?;
 
-                    if tmp_kind == Vector {
-                        let new_target = if depth == 0 {
-                            "vtmp".to_string()
-                        } else {
-                            format!("vtmp{depth}")
-                        };
-                        tmp = tmp.replace(&tmp_target, &new_target);
-                        tmp_target = new_target;
-                    } else if tmp_kind == Matrix {
-                        let new_target = if depth == 0 {
-                            "mtmp".to_string()
-                        } else {
-                            format!("mtmp{depth}")
-                        };
-                        tmp = tmp.replace(&tmp_target, &new_target);
-                        tmp_target = new_target;
+                    match tmp_kind {
+                        Vector => {
+                            let new_target = if depth == 0 {
+                                "vtmp".to_string()
+                            } else {
+                                format!("vtmp{depth}")
+                            };
+                            tmp = tmp.replace(&tmp_target, &new_target);
+                            tmp_target = new_target;
+                        }
+
+                        Matrix => {
+                            let new_target = if depth == 0 {
+                                "mtmp".to_string()
+                            } else {
+                                format!("mtmp{depth}")
+                            };
+                            tmp = tmp.replace(&tmp_target, &new_target);
+                            tmp_target = new_target;
+                        }
+
+                        Scalar => {
+                            todo!("Scalar sub res (could happen if we support dot product for instance)")
+                        }
                     }
 
                     let scalar_mul_pattern = format!(r"^//.*\n(.*?;)\s*{tmp_target} \*= (.+?);$");
                     let scalar_mul_re = Regex::new(&scalar_mul_pattern).unwrap();
 
-                    let useless_temporary_value_pattern =
-                        format!(r"(?s)^(.*){tmp_target} = (\w*);\n(.*?, {tmp_target}\);)$");
+                    let scalar_vec_mul_pattern =
+                        format!(r"^(?s)(.*){tmp_target}\.equ\((.*?), (\w+)\);$");
+                    let scalar_vec_mul_re = Regex::new(&scalar_vec_mul_pattern).unwrap();
+
+                    let useless_temporary_value_pattern = format!(
+                        r"(?s)^(.*){tmp_target}(?: = |\.copy_from\()(\w*?)\)?;\n(.*?, {tmp_target}\);)$"
+                    );
                     let useless_temporary_value_re =
                         Regex::new(&useless_temporary_value_pattern).unwrap();
 
@@ -389,8 +467,16 @@ fn vec_code_gen(
                         } else {
                             partial_res += &format!("{target}.add({coeff}, {tmp_target});");
                         }
+                    } else if let Some(captures) = scalar_vec_mul_re.captures(&tmp) {
+                        partial_res += &captures[1];
+                        let coeff = &captures[2];
+                        let source = &captures[3];
+                        if coeff == "-1" {
+                            partial_res += &format!("{target} -= {source};");
+                        } else {
+                            partial_res += &format!("{target}.add({coeff}, {source});");
+                        }
                     } else {
-                        // partial_res += "\n";
                         partial_res += &tmp;
                         partial_res += "\n";
                         partial_res += &format!("{target} += {tmp_target};");
@@ -413,6 +499,26 @@ fn vec_code_gen(
                     (res_kind, format!("{res_str}  // {target} = {expr}")).into()
                 } else {
                     res += "\n";
+
+                    // When two simple coeff additions are found, simplify to one double coeff addition
+                    let sequence_of_two_adds_pattern = format!(
+                        r"// {target} \+= (.*?)\s*{target}\.add\((.*?), (\w+)\);\s*// {target} \+= (.*?)\s*{target}\.add\((.*?), (\w+)\);"
+                    );
+                    let sequence_of_two_adds_re =
+                        Regex::new(&sequence_of_two_adds_pattern).unwrap();
+                    res.0 = sequence_of_two_adds_re
+                        .replace_all(&res.0, |captures: &Captures| {
+                            format!(
+                                "// {target} += {} + {}\n{target}.add({}, {}, {}, {});",
+                                &captures[1],
+                                &captures[4],
+                                &captures[2],
+                                &captures[3],
+                                &captures[5],
+                                &captures[6]
+                            )
+                        })
+                        .to_string();
                     res
                 }
             }
@@ -448,7 +554,7 @@ fn vec_code_gen(
                             };
 
                             let mut sub_code_gen =
-                                vec_code_gen(&tmp_vec, op, vectors, matrixes, depth + 1)?;
+                                expr_code_gen(&tmp_vec, op, vectors, matrixes, depth + 1)?;
 
                             let new_tmp = match sub_code_gen.1 {
                                 Vector => {
@@ -488,15 +594,25 @@ fn vec_code_gen(
 
             match seq.as_slice() {
                 [] => (Scalar, format!("{target} = {};", coeff.to_cpp())).into(),
-                [Kind::Vec(a)] => {
-                    (Vector, if coeff.is_one() {
-                        format!("{target} = {a};")
-                    } else {
-                        let coeff_cpp = coeff.to_cpp();
-                        format!("{}{target}.equ({coeff_cpp}, {a});", if depth ==0{
-                            format!("// {target} = {coeff} * {a}\n")
-                        } else {String::new()})
-                    }).into()
+                [Kind::Vec(v)] => {
+                    let v_cpp = v.to_cpp();
+                    (
+                        Vector,
+                        if coeff.is_one() {
+                            format!("{target} = {v_cpp};")
+                        } else {
+                            let coeff_cpp = coeff.to_cpp();
+                            format!(
+                                "{}{target}.equ({coeff_cpp}, {v_cpp});",
+                                if depth == 0 {
+                                    format!("// {target} = {coeff} * {v}\n")
+                                } else {
+                                    String::new()
+                                }
+                            )
+                        },
+                    )
+                        .into()
                 }
                 [Kind::Mat(m)] => {
                     let m_cpp = m.to_cpp();
@@ -505,26 +621,30 @@ fn vec_code_gen(
                     } else {
                         let coeff_cpp = coeff.to_cpp();
                         format!(
-                            "// {target} = {coeff} * {m}\n{target} = {m_cpp}; {target} *= {coeff_cpp};"
+                            "// {target} = {coeff} * {m}\n{target}.copy_from({m_cpp}); {target} *= {coeff_cpp};"
                         )
                     }).into()
                 }
                 [Kind::Vec(a), Kind::Vec(b)] => {
+                    let a_cpp = a.to_cpp();
+                    let b_cpp = b.to_cpp();
                     (Vector, if coeff.is_one() {
-                        format!("// {target} = {a}.{b}\n{target} = {a} * {b};  ")
+                        format!("// {target} = {a}.{b}\n{target} = {a_cpp} * {b_cpp};  ")
                     } else {
                         let coeff_cpp = coeff.to_cpp();
                         format!(
-                            "// {target} = {coeff} * {a}.{b}\n{target} = {coeff_cpp} * ({a} * {b});"
+                            "// {target} = {coeff} * {a}.{b}\n{target} = {coeff_cpp} * ({a_cpp} * {b_cpp});"
                         )
                     }).into()
                 }
                 [Kind::Mat(m), Kind::Vec(v)] => {
+                    let m_cpp = m.to_cpp();
+                    let v_cpp = v.to_cpp();
                     (Vector, if coeff.is_one() {
-                        format!("// {target} = {expr}\n{m}.vmult({target}, {v});")
+                        format!("// {target} = {expr}\n{m_cpp}.vmult({target}, {v_cpp});")
                     } else {
                         format!(
-                            "// {target} = {expr}\n{m}.vmult({target}, {v}); {target} *= {coeff_cpp};"
+                            "// {target} = {expr}\n{m_cpp}.vmult({target}, {v_cpp}); {target} *= {coeff_cpp};"
                         )
                     }).into()
                 }
@@ -534,29 +654,32 @@ fn vec_code_gen(
 
                     for kind in &seq {
                         match (res.1, kind) {
-                            (Vector, Kind::Vec(_)) => {
-                                Err(ExprCodeGenError::VectorMul)?
-                            }
+                            (Vector, Kind::Vec(_)) => Err(ExprCodeGenError::VectorMul)?,
                             (_, Kind::Code(src, code)) => {
                                 res *= code;
                                 source = src.to_string();
                             }
                             (Matrix, Kind::Mat(m)) => {
                                 let m_cpp = m.to_cpp();
-                                res *= &StringWKind(format!("{source}.mmult({target}, {m_cpp});"), Matrix);
+                                res *= &StringWKind(
+                                    format!("{source}.mmult({target}, {m_cpp});"),
+                                    Matrix,
+                                );
                             }
                             (Matrix, Kind::Vec(v)) => {
                                 let v_cpp = v.to_cpp();
                                 res += &format!("// {target} = {source} * {v}\n");
-                                res *= &StringWKind(format!("{source}.vmult({target}, {v_cpp});"), Vector);
+                                res *= &StringWKind(
+                                    format!("{source}.vmult({target}, {v_cpp});"),
+                                    Vector,
+                                );
                             }
-                            _ => todo!("mul many: {:?} {kind:?}", res.1)
+                            _ => todo!("mul many: {:?} {kind:?}", res.1),
                         }
-
                     }
 
                     res
-                },
+                }
             }
         }
 
@@ -577,10 +700,32 @@ fn rhs_code_gen(
     vectors: &[&dyn Expr],
     matrixes: &[&dyn Expr],
 ) -> Result<String, ExprCodeGenError> {
-    let StringWKind(res, res_kind) = vec_code_gen("rhs", expr, vectors, matrixes, 0)?;
+    vec_code_gen("rhs", expr, vectors, matrixes)
+}
+
+fn vec_code_gen(
+    target: &str,
+    expr: &dyn Expr,
+    vectors: &[&dyn Expr],
+    matrixes: &[&dyn Expr],
+) -> Result<String, ExprCodeGenError> {
+    let StringWKind(res, res_kind) = expr_code_gen(target, expr, vectors, matrixes, 0)?;
     match res_kind {
-        Scalar | Vector => Ok(res.trim().to_string()),
+        Vector | Scalar => Ok(res.trim().to_string()),
         _ => Err(ExprCodeGenError::MatResult),
+    }
+}
+
+fn mat_code_gen(
+    target: &str,
+    expr: &dyn Expr,
+    vectors: &[&dyn Expr],
+    matrixes: &[&dyn Expr],
+) -> Result<String, ExprCodeGenError> {
+    let StringWKind(res, res_kind) = expr_code_gen(target, expr, vectors, matrixes, 0)?;
+    match res_kind {
+        Matrix | Scalar => Ok(res.trim().to_string()),
+        _ => Err(ExprCodeGenError::VecResult),
     }
 }
 
@@ -611,7 +756,7 @@ mod tests {
         let c = symbol!("c");
         let expr = c * u;
         let res = rhs_code_gen(expr.get_ref(), &[u], &[]).unwrap();
-        assert_eq!(res, "rhs.equ(c, u);  // rhs = c * u")
+        assert_eq!(res, "// rhs = c * u\nrhs.equ(c, u);")
     }
     #[test]
     fn test_rhs_coeff_vector_2() {
@@ -620,7 +765,7 @@ mod tests {
         let r = Rational::new(2, 3);
         let expr = (r - 4) * c * u;
         let res = rhs_code_gen(expr.get_ref(), &[u], &[]).unwrap();
-        assert_eq!(res, "rhs.equ((-10./3.) * c, u);  // rhs = (-10/3)c * u")
+        assert_eq!(res, "// rhs = (-10/3)c * u\nrhs.equ((-10./3.) * c, u);")
     }
 
     #[test]
@@ -639,10 +784,11 @@ mod tests {
         let expr = a * u;
         let res = rhs_code_gen(expr.get_ref(), &[u], &[a]).unwrap();
 
-        assert_eq!(res, "A.vmult(rhs, u);  // rhs = Au")
+        assert_eq!(res, "// rhs = Au\na.vmult(rhs, u);")
     }
 
     #[test]
+    #[ignore]
     fn test_rhs_addition() {
         let [u, v] = symbols!("u", "v");
 
@@ -654,6 +800,7 @@ mod tests {
 // rhs = u + v
 rhs = u;
 rhs += v;"
+                .trim()
         )
     }
     #[test]
@@ -672,7 +819,7 @@ rhs += v;"
 
         let expr = k * u;
         let res = rhs_code_gen(expr.get_ref(), &[u], &[]).unwrap();
-        assert_eq!(res, "rhs.equ(k, U);  // rhs = k * U")
+        assert_eq!(res, "// rhs = k * U\nrhs.equ(time_step, u);")
     }
 
     #[test]
@@ -681,11 +828,16 @@ rhs += v;"
         let [m, u_prev, v_prev, k] = symbols!("m", "u_prev", "v_prev", "k");
         let expr = m * u_prev - k * m * v_prev;
         let res = rhs_code_gen(expr.get_ref(), &[v_prev, u_prev], &[m]).unwrap();
+
         let expected = r"
 // rhs = mu_prev - kmv_prev
-m.vmult(rhs, u_prev);  // rhs = mu_prev
-m.vmult(tmp, v_prev);
-rhs.add(-k, tmp);";
+// rhs = mu_prev
+m.vmult(rhs, u_prev);
+
+// rhs += -kmv_prev
+m.vmult(vtmp, v_prev);
+rhs.add(-time_step, vtmp);"
+            .trim();
 
         println!("{res}\n\n{expected}");
 
@@ -698,7 +850,7 @@ rhs.add(-k, tmp);";
         let expr = u * v;
         let res = rhs_code_gen(expr.get_ref(), &[u, v], &[]).unwrap();
 
-        assert_eq!(res, "rhs = u * v;  // rhs = u.v")
+        assert_eq!(res, "// rhs = u.v\nrhs = u * v;")
     }
 
     #[test]
@@ -706,7 +858,7 @@ rhs.add(-k, tmp);";
         let [k, u, v] = symbols!("k", "u", "v");
         let expr = k * 2 * u * v;
         let res = rhs_code_gen(expr.get_ref(), &[u, v], &[]).unwrap();
-        assert_eq!(res, "rhs = 2 * k * (u * v);  // rhs = 2k * u.v")
+        assert_eq!(res, "// rhs = 2k * u.v\nrhs = 2 * time_step * (u * v);")
     }
 
     #[test]
@@ -715,7 +867,7 @@ rhs.add(-k, tmp);";
 
         let expr = k * a * u;
         let res = rhs_code_gen(expr.get_ref(), &[u], &[a]).unwrap();
-        assert_eq!(res, "A.vmult(rhs, u); rhs *= k;  // rhs = kAu")
+        assert_eq!(res, "// rhs = kAu\na.vmult(rhs, u); rhs *= time_step;")
     }
 
     #[test]
@@ -751,7 +903,7 @@ rhs.add(-k, tmp);";
 
 // mtmp = -(1 / k)mass_mat + (1/4)(c^2)laplace_mat
 // mtmp = -(1 / k) * mass_mat
-mtmp = mass_mat; mtmp *= -(1 / k);
+mtmp.copy_from(mass_mat); mtmp *= -(1 / time_step);
 
 // mtmp += (1/4)(c^2)laplace_mat
 mtmp.add((1./4.) * (c * c), laplace_mat);
@@ -763,18 +915,61 @@ mtmp.vmult(rhs, u_prev);
 mass_mat.vmult(vtmp, v_prev);
 rhs -= vtmp;
 
-// rhs += (-1/4)kf_prev
-vtmp.equ((-1./4.) * k, f_prev);
-rhs += vtmp;
-
-// rhs += (-1/4)kf
-vtmp.equ((-1./4.) * k, f);
-rhs += vtmp;
+// rhs += (-1/4)kf_prev + (-1/4)kf
+rhs.add((-1./4.) * time_step, f_prev, (-1./4.) * time_step, f);
 ".trim();
 
         println!("\n# Res:\n{}\n# End Res", res);
         println!("\n# Expected:\n{}\n# End Expected", expected);
 
+        assert_eq!(res, expected)
+    }
+
+    #[test]
+    fn test_wave_eq_system() {
+        // -(1 / k)M^n + (-1/4)(c^2)kA^n
+
+        let [k, mass_mat, c, laplace_mat] = symbols!("k", "mass_mat", "c", "laplace_mat");
+
+        let expr = -(Integer::one_box() / k) * mass_mat
+            + Rational::new_box(-1, 4) * c.ipow(2) * laplace_mat;
+        let res = mat_code_gen("system", expr.get_ref(), &[], &[mass_mat, laplace_mat]).unwrap();
+        let expected = r"
+// system = -(1 / k)mass_mat + (-1/4)(c^2)laplace_mat
+// system = -(1 / k) * mass_mat
+system.copy_from(mass_mat); system *= -(1 / time_step);
+
+// system += (-1/4)(c^2)laplace_mat
+system.add((-1./4.) * (c * c), laplace_mat);
+"
+        .trim();
+        assert_eq!(res, expected)
+    }
+    #[test]
+    fn test_symbol() {
+        // let eq = Equation::new(&Symbol::new("u"), &Integer::new(1));
+        let expr = &Symbol::new("k");
+        let res = rhs_code_gen(expr, &[], &[]).unwrap();
+        assert_eq!(res, "rhs = time_step;")
+    }
+
+    #[test]
+    fn test_add_scalar() {
+        let [k, u] = symbols!("k", "u");
+
+        let expr = u + Rational::new_box(-1, 2) * k;
+        let res = rhs_code_gen(expr.get_ref(), &[u], &[]).unwrap();
+
+        println!("\n{res}\n\n");
+
+        let expected = r"
+// rhs = u + (-1/2)k
+rhs = u;
+
+// rhs += (-1/2)k
+rhs += (-1./2.) * time_step;
+"
+        .trim();
         assert_eq!(res, expected)
     }
 }

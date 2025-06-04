@@ -47,6 +47,18 @@ impl Expr for Symbol {
     fn str(&self) -> String {
         self.name.clone()
     }
+    fn to_cpp(&self) -> String {
+        match self.name.as_str() {
+            "M^n" => "mass_mat".to_string(),
+            "A^n" => "laplace_mat".to_string(),
+            "k" => "time_step".to_string(),
+            _ => self
+                .name
+                .replace("^n-1", "_prev")
+                .replace("^n", "")
+                .to_lowercase(),
+        }
+    }
 }
 
 impl<E: Expr> std::ops::Add<&E> for &Symbol {

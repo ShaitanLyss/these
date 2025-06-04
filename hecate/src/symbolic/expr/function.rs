@@ -92,6 +92,10 @@ impl Expr for Func {
             // self.args.iter().map(|x| x.str()).collect::<String>()
         )
     }
+
+    fn to_cpp(&self) -> String {
+        self.name.replace("^n-1", "_prev").replace("^n", "").to_lowercase()
+    }
 }
 
 impl fmt::Debug for Func {

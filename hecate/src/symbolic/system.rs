@@ -1,7 +1,8 @@
 use itertools::Itertools;
 
 use super::*;
-use crate::symbol;
+use crate::{symbol, symbols};
+use lazy_static::lazy_static;
 
 #[derive(Debug, Clone)]
 pub struct System {
@@ -9,6 +10,15 @@ pub struct System {
     pub known_unknowns: Vec<Func>,
     pub knowns: Vec<Func>,
     pub equations: Vec<Eq>,
+}
+
+lazy_static! {
+    static ref shape_matrixes: [Symbol; 4] = [
+        Symbol::new("M^n"),
+        Symbol::new("A^n"),
+        Symbol::new("M^n,n-1"),
+        Symbol::new("A^n,n-1")
+    ];
 }
 
 impl std::fmt::Display for System {
@@ -310,12 +320,16 @@ impl System {
         }
     }
 
-    pub(crate) fn vectors(&self) -> impl Iterator<Item = String> {
+    pub(crate) fn vectors(&self) -> impl Iterator<Item = &dyn Expr> {
         self.unknowns
             .iter()
             .chain(self.known_unknowns.iter())
             .chain(self.knowns.iter())
-            .map(|f| f.str())
+            .map(|f| f.get_ref())
+    }
+
+    pub fn matrixes(&self) -> impl Iterator<Item = &dyn Expr> {
+        shape_matrixes.iter().map(|m| m.get_ref())
     }
 
     pub(crate) fn num_vectors(&self) -> usize {
@@ -344,10 +358,10 @@ impl System {
             .map(|(e, _)| e)
     }
 
-    pub fn equation_lhs_unknowns(&self, equation: &Equation) -> impl Iterator<Item = String> {
+    pub fn equation_lhs_unknowns(&self, equation: &Equation) -> impl Iterator<Item = &dyn Expr> {
         self.unknowns.iter().filter_map(|unknown| {
             if equation.has(unknown) {
-                Some(unknown.str())
+                Some(unknown.get_ref())
             } else {
                 None
             }

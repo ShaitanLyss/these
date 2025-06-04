@@ -15,6 +15,22 @@ pub trait Mesh: std::fmt::Debug + DynClone + Any {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum MeshEnum {
+    #[serde(rename = "hyper_cube")]
+    HyperCube(HyperCubeMesh),
+}
+
+impl MeshEnum {
+    pub fn get_ref(&self) -> &dyn Mesh {
+        match self {
+            MeshEnum::HyperCube(m) => m.get_ref(),
+        }
+    }
+
+}
+
 dyn_clone::clone_trait_object!(Mesh);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

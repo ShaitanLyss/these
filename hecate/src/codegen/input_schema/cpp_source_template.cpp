@@ -37,12 +37,12 @@ void Sim::run() {
   time = {{ time_start }} + time_step;
 
   // TODO
-  VectorTools::project(dof_handler, constraints, QGauss<dim>(element.degree + 1),
-                       InitialValuesU<dim>(), u_prev);
-  VectorTools::project(dof_handler, constraints, QGauss<dim>(element.degree + 1),
-                       InitialValuesV<dim>(), v_prev);
-  Vector<double> tmp(u.size());
-  Vector<double> forcing_terms(u.size());
+  // VectorTools::project(dof_handler, constraints, QGauss<dim>(element.degree + 1),
+  //                      InitialValuesU<dim>(), u_prev);
+  // VectorTools::project(dof_handler, constraints, QGauss<dim>(element.degree + 1),
+  //                      InitialValuesV<dim>(), v_prev);
+  // Vector<double> tmp(u.size());
+  // Vector<double> forcing_terms(u.size());
   // End TODO
 
 
@@ -50,6 +50,7 @@ void Sim::run() {
     std::cout << "Time step " << timestep_number << " at t=" << time << "\n";
 
     {{ main | trim }}
+
 
     output_results();
   }
