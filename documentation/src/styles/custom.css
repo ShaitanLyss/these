@@ -11,7 +11,7 @@ html[data-theme="dark"] .beoe-light {
   justify-content: center;
 }
 
-/* /* Dark mode colors. */ */
+/* Dark mode colors. */
 /* :root { */
 /* 	--sl-color-accent-low: #3d112a; */
 /* 	--sl-color-accent: #ba007f; */
@@ -25,7 +25,7 @@ html[data-theme="dark"] .beoe-light {
 /* 	--sl-color-gray-6: #24272f; */
 /* 	--sl-color-black: #17181c; */
 /* } */
-/* /* Light mode colors. */ */
+/* Light mode colors. */
 /* :root[data-theme='light'] { */
 /* 	--sl-color-accent-low: #f5c8dd; */
 /* 	--sl-color-accent: #be0081; */

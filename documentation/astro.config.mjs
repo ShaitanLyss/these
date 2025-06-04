@@ -11,8 +11,6 @@ import rehypeKatex from 'rehype-katex';
 import starlightAutoSidebar from 'starlight-auto-sidebar';
 
 import svelte from '@astrojs/svelte';
-import wasm from 'vite-plugin-wasm';
-import topLevelAwait from 'vite-plugin-top-level-await';
 import devtoolsJson from 'vite-plugin-devtools-json';
 
 const cache = await getCache();
@@ -23,9 +21,6 @@ export default defineConfig({
   base: '/these',
   vite: {
     plugins: [
-      // vitePluginWasmPack([], ['@selenial/hecate']),
-      wasm(),
-      topLevelAwait(),
       devtoolsJson(),
     ]
 
@@ -99,5 +94,7 @@ export default defineConfig({
         autogenerate: { directory: 'research' },
       },
     ],
-  }), markdoc(), svelte()],
+  }), markdoc(), 
+    svelte()
+  ],
 });
