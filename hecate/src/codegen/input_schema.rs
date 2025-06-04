@@ -17,7 +17,7 @@ mod reference;
 mod unit;
 
 use dyn_clone::DynClone;
-use quantity::{Length, Speed, Time, RANGE_PATTERN};
+use quantity::{Length, RANGE_PATTERN, Speed, Time};
 
 use mesh::{Mesh, MeshEnum};
 use range::Range;
@@ -96,7 +96,6 @@ pub struct InputSchema {
     pub functions: HashMap<String, FunctionDef>,
     pub solve: Solve,
 }
-
 
 impl InputSchema {
     pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
@@ -360,9 +359,7 @@ impl InputSchema {
             factory.dof_handler("dof_handler", &DofHandlerConfig { mesh, element })?,
         )?;
 
-        let vector_config = VectorConfig {
-            dof_handler,
-       };
+        let vector_config = VectorConfig { dof_handler };
 
         let mut vectors: HashMap<&dyn Expr, String> = HashMap::with_capacity(system.num_vectors());
 
@@ -380,9 +377,7 @@ impl InputSchema {
         let mut unknowns_matrices: HashMap<&dyn Expr, String> =
             HashMap::with_capacity(system.unknowns.len());
 
-        let matrix_config = MatrixConfig {
-            sparsity_pattern,
-        };
+        let matrix_config = MatrixConfig { sparsity_pattern };
         let rhs = blocks.create("rhs", Block::Vector(&vector_config))?;
         let mut unknown_solvers: HashMap<&dyn Expr, String> = HashMap::new();
         for unknown in &system.unknowns {
@@ -566,9 +561,7 @@ impl<'fa> BuildingBlockCollector<'fa> {
         let mut additional_blocks: HashMap<String, BuildingBlock> = HashMap::new();
 
         let tmp_vector_config = VectorConfig { dof_handler };
-        let tmp_matrix_config = MatrixConfig {
-            sparsity_pattern,
-        };
+        let tmp_matrix_config = MatrixConfig { sparsity_pattern };
         for (
             _,
             BuildingBlock {

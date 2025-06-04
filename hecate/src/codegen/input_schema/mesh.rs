@@ -28,7 +28,6 @@ impl MeshEnum {
             MeshEnum::HyperCube(m) => m.get_ref(),
         }
     }
-
 }
 
 dyn_clone::clone_trait_object!(Mesh);

@@ -94,7 +94,10 @@ impl Expr for Func {
     }
 
     fn to_cpp(&self) -> String {
-        self.name.replace("^n-1", "_prev").replace("^n", "").to_lowercase()
+        self.name
+            .replace("^n-1", "_prev")
+            .replace("^n", "")
+            .to_lowercase()
     }
 }
 

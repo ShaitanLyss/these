@@ -5,7 +5,6 @@ use bindgen;
 use cmake;
 
 fn main() {
-
     let target = env::var("TARGET").unwrap();
 
     // Check if the target architecture is wasm32

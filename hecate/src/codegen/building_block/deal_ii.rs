@@ -438,7 +438,9 @@ fn expr_code_gen(
                         }
 
                         Scalar => {
-                            todo!("Scalar sub res (could happen if we support dot product for instance)")
+                            todo!(
+                                "Scalar sub res (could happen if we support dot product for instance)"
+                            )
                         }
                     }
 

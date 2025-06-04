@@ -72,15 +72,14 @@ impl Expr for Pow {
                 let n = *n as usize;
                 let base_cpp = self.base.to_cpp();
 
-                let mut res = String::with_capacity((base_cpp.len() + 3) * (n - 1) + base_cpp.len() );
+                let mut res =
+                    String::with_capacity((base_cpp.len() + 3) * (n - 1) + base_cpp.len());
                 res += &base_cpp;
                 for _ in 1..n {
                     res += " * ";
                     res += &base_cpp;
                 }
                 res
-
-
             } else {
                 format!("pow({}, {})", self.base.to_cpp(), self.exponent.to_cpp())
             }

@@ -34,7 +34,6 @@ pub fn start() {
     }
 }
 
-
 pub fn format_err<E: StdError + Sync + Send + 'static>(err: E) -> String {
     let err = anyhow::Error::from(err);
     format!("Error: {err:?}")
