@@ -10,12 +10,26 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import starlightAutoSidebar from 'starlight-auto-sidebar';
 
+import svelte from '@astrojs/svelte';
+import wasm from 'vite-plugin-wasm';
+import topLevelAwait from 'vite-plugin-top-level-await';
+import devtoolsJson from 'vite-plugin-devtools-json';
+
 const cache = await getCache();
 
 // https://astro.build/config
 export default defineConfig({
   site: 'https://shaitanlyss.github.io',
   base: '/these',
+  vite: {
+    plugins: [
+      // vitePluginWasmPack([], ['@selenial/hecate']),
+      wasm(),
+      topLevelAwait(),
+      devtoolsJson(),
+    ]
+
+  },
   markdown: {
     remarkPlugins: [
       [remarkMath, {}]
@@ -85,5 +99,5 @@ export default defineConfig({
         autogenerate: { directory: 'research' },
       },
     ],
-  }), markdoc()],
+  }), markdoc(), svelte()],
 });

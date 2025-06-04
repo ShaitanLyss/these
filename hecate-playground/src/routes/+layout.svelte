@@ -7,7 +7,7 @@
 	// @import 'highlight.js/styles/atom-one-dark.css' screen and (prefers-color-scheme: dark);
 	// @import 'highlight.js/styles/vs.css' screen and (prefers-color-scheme: light);
 
-  setContext('lightmode', () => lightmode);
+	setContext('lightmode', () => lightmode);
 
 	const lightStyle = 'vs';
 	const darkStyle = 'atom-one-dark';
@@ -25,6 +25,7 @@
 		<link rel="preload" href={sheetUrl(style)} as="style" />
 	{/each}
 	<link rel="stylesheet" href={stylesheet} />
+	<title>Hecate Playground</title>
 </svelte:head>
 
 <div class="relative" data-theme={lightmode ? 'light' : 'dark'}>
