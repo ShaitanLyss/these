@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::*;
 
 use super::factor_coeff_no_div;
@@ -32,12 +34,18 @@ pub fn subs<'a, E: Expr + ?Sized>(expr: &E, substitutions: &[[Box<dyn Expr>; 2]]
 
     expr.from_args(
         expr.args()
-            .iter()
+            .into_iter()
             .map(|arg| {
-                if let Some(expr) = arg.as_expr() {
+                if let Some(expr_vec) = arg.as_any().downcast_ref::<Vec<Box<dyn Expr>>>() {
+                    let res = expr_vec
+                        .into_iter()
+                        .map(|e| subs(e.get_ref(), substitutions))
+                        .collect_vec();
+                    res.clone_arg()
+                } else if let Some(expr) = arg.as_expr() {
                     expr.subs(&substitutions).into()
                 } else {
-                    arg.clone()
+                    arg
                 }
             })
             .collect(),
@@ -66,5 +74,17 @@ mod tests {
         let s = [[x * y, z.clone_box()]];
 
         assert_eq!(subs_box(&(x * y * 2), &s), z * 2);
+    }
+
+    #[test]
+    fn test_subs_symbol_in_function() {
+        let x = symbol!("x");
+
+        let expr = Func::new("sin", vec![(x * 2).get_ref()]);
+
+        let s = [[x.clone_box(), Symbol::new_box("point[0]")]];
+        let res = subs(&expr, &s);
+
+        assert_eq!(res.to_cpp(), "sin(2 * point[0])",)
     }
 }

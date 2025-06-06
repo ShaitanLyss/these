@@ -157,6 +157,8 @@ pub enum ParseFunctionError {
     InvalidFuncExpr(Box<ParseError>),
     #[error("invalid order format: {0}, {1}")]
     InvalidOrderFormat(String, ParseIntError),
+    #[error("invalid argument")]
+    InvalidArg(#[from] Box<ParseError>),
 }
 
 pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunctionError> {
@@ -183,10 +185,19 @@ pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunc
             };
             f.diff(args[1], order)
         }
-        _ => Func::new_move_box(
-            name.to_string(),
-            args.iter().map(|a| Symbol::new(a)).collect(),
-        ),
+        _ => {
+            let args: Result<Vec<Box<dyn Expr>>, ParseFunctionError> = args
+                .into_iter()
+                .map(|a| -> Result<Box<dyn Expr>, ParseFunctionError> {
+                    Ok(a.parse().map_err(|e| ParseFunctionError::InvalidArg(Box::new(e)))?)
+                })
+                .collect();
+
+            Func::new_move_box(
+                name.to_string(),
+                args?,
+            )
+        }
     })
 }
 

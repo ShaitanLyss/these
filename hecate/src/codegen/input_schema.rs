@@ -11,8 +11,8 @@ pub trait RawRepr {
 }
 
 pub mod mesh;
-mod quantity;
-mod range;
+pub mod quantity;
+pub mod range;
 mod reference;
 mod unit;
 
@@ -153,11 +153,11 @@ where
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConditionedFunction {
-    expr: Box<dyn Expr>,
-    t: Option<Condition<Time>>,
-    x: Option<Condition<Length>>,
-    y: Option<Condition<Length>>,
-    z: Option<Condition<Length>>,
+    pub expr: Box<dyn Expr>,
+    pub t: Option<Condition<Time>>,
+    pub x: Option<Condition<Length>>,
+    pub y: Option<Condition<Length>>,
+    pub z: Option<Condition<Length>>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -258,6 +258,33 @@ pub struct Unknown {
     pub derivative: Option<Box<Unknown>>,
 }
 
+impl Unknown {
+    pub fn visit_symbols<F: Fn(&str)>(&self, f: F) {
+        f(&self.initial);
+        if let Some(boundary) = &self.boundary {
+            f(boundary)
+        }
+
+        if let Some(derivative) = &self.derivative {
+            derivative.visit_symbols(f);
+        }
+    }
+
+    pub fn has_symbol(&self, s: &str) -> bool {
+        if self.initial == s {
+            true
+        } else if let Some(boundary) = &self.boundary
+            && boundary == s
+        {
+            true
+        } else if let Some(derivative) = &self.derivative {
+            derivative.has_symbol(s)
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum CodeGenError {
     #[error("failed to construct a block")]
@@ -268,6 +295,8 @@ pub enum CodeGenError {
     MissingSolver(String),
     #[error("invalid yaml input schema")]
     InvalidYaml(#[from] serde_yaml::Error),
+    #[error("schema validation failed")]
+    InvalidSchema(#[from] SchemaValidationError),
 }
 
 lazy_static! {
@@ -289,8 +318,44 @@ lazy_static! {
     };
 }
 
+#[derive(Error, Debug)]
+pub enum SchemaValidationError {
+    #[error("mesh {0} not found")]
+    MeshNotFound(String),
+    #[error("equation(s) {0} not found")]
+    EquationNotFound(String),
+}
+
 impl InputSchema {
+    pub fn validate(&self) -> Result<(), SchemaValidationError> {
+        let Solve {
+            equations,
+            mesh,
+            element,
+        } = &self.solve;
+
+        self.meshes
+            .contains_key(mesh)
+            .then_some(())
+            .ok_or(SchemaValidationError::MeshNotFound(mesh.to_string()))?;
+        let missing_eqs = equations
+            .iter()
+            .filter_map(|e| (!self.equations.contains_key(e)).then_some(e))
+            .collect_vec();
+
+        if missing_eqs.len() > 0 {
+            return Err(SchemaValidationError::EquationNotFound(
+                missing_eqs.into_iter().join(", "),
+            ));
+        }
+
+        // TODO validate all needed symbols by the equations are present
+        // either as parameter of function
+
+        Ok(())
+    }
     pub fn generate_cpp_sources(&self) -> Result<String, CodeGenError> {
+        self.validate()?;
         let factory = deal_ii_factory();
         let mut blocks = BuildingBlockCollector::new(&factory);
         blocks.newline();
@@ -306,16 +371,32 @@ impl InputSchema {
             element,
         } = &self.solve;
 
-        let mesh = self.meshes.get(mesh).unwrap();
+        let mesh = &self.meshes[mesh];
 
-        let equations = equations
-            .iter()
-            .map(|e| self.equations.get(e).unwrap())
-            .collect::<Vec<_>>();
+        let equations = equations.iter().map(|e| &self.equations[e]).collect_vec();
 
-        let unknowns = self.unknowns.keys().map(|s| &s[..]).collect::<Vec<_>>();
+        let unknowns = self.unknowns.keys().map(|s| &s[..]).collect_vec();
         let mut knowns = Vec::with_capacity(self.functions.len());
         let mut substitutions = Vec::with_capacity(self.functions.len() + self.unknowns.len());
+
+        // Identify functions used for the current problem
+        let mut used_functions: HashMap<&str, &FunctionDef> =
+            HashMap::with_capacity(self.functions.len());
+
+        for (name, f) in &self.functions {
+            if equations.iter().any(|eq| eq.has(&Symbol::new(name)))
+                || self.unknowns.iter().any(|(_, u)| u.has_symbol(name))
+            {
+                used_functions.insert(name, f);
+            }
+        }
+
+        let mut functions: HashMap<&str, String> = HashMap::with_capacity(used_functions.len());
+        for (name, f) in used_functions.into_iter() {
+            let function = format!("Fn_{name}");
+            blocks.create(&function, Block::Function(f))?;
+            functions.insert(name, function);
+        }
 
         for (u, _) in &self.unknowns {
             let symbol = symbol!(u);
@@ -334,10 +415,10 @@ impl InputSchema {
             }
         }
 
-        let equations: Vec<_> = equations
+        let equations = equations
             .iter()
             .map(|e| e.subs(&substitutions).as_eq().unwrap())
-            .collect();
+            .collect_vec();
 
         let system = System::new(unknowns, knowns, equations.iter())
             .to_first_order_in_time()
@@ -408,7 +489,7 @@ impl InputSchema {
             );
         }
 
-        let laplace_mat = blocks.insert(
+        let _laplace_mat = blocks.insert(
             "laplace_mat",
             factory.shape_matrix(
                 "laplace_mat",
@@ -420,7 +501,7 @@ impl InputSchema {
                 },
             )?,
         )?;
-        let mass_mat = blocks.insert(
+        let _mass_mat = blocks.insert(
             "mass_mat",
             factory.shape_matrix(
                 "mass_mat",
@@ -494,6 +575,7 @@ impl From<BuildingBlock> for tera::Context {
             additional_vectors: _,
             additional_matrixes: _,
             main,
+            global,
         } = block;
         context.insert(
             "includes",
@@ -519,6 +601,8 @@ impl From<BuildingBlock> for tera::Context {
             "main",
             &main.into_iter().map(|s| format!("    {s}")).join("\n"),
         );
+
+        context.insert("global", &global.join("\n\n\n"));
         context
     }
 }
@@ -602,6 +686,7 @@ impl<'fa> BuildingBlockCollector<'fa> {
                 main,
                 additional_vectors: _,
                 additional_matrixes: _,
+                global,
             },
         ) in self.blocks
         {
@@ -612,6 +697,7 @@ impl<'fa> BuildingBlockCollector<'fa> {
             res.methods_defs.extend(methods_defs);
             res.methods_impls.extend(methods_impls);
             res.main.extend(main);
+            res.global.extend(global);
         }
 
         Ok(res)
@@ -634,6 +720,7 @@ impl<'fa> BuildingBlockCollector<'fa> {
                     self.factory.equation_setup(name, equation_setup_config)?
                 }
                 Block::Parameter(value) => self.factory.parameter(name, value)?,
+                Block::Function(function) => self.factory.function(name, function)?,
             },
         )?;
         Ok(name)

@@ -10,7 +10,7 @@ use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Equation, Expr};
+use crate::{Equation, Expr, codegen::input_schema::FunctionDef};
 
 use super::input_schema::{FiniteElement, mesh::Mesh};
 
@@ -26,6 +26,7 @@ pub struct BuildingBlock {
     pub main: Vec<String>,
     pub additional_vectors: HashSet<String>,
     pub additional_matrixes: HashSet<String>,
+    pub global: Vec<String>,
 }
 
 impl BuildingBlock {
@@ -41,7 +42,12 @@ impl BuildingBlock {
             main: Vec::new(),
             additional_vectors: HashSet::new(),
             additional_matrixes: HashSet::new(),
+            global: Vec::new(),
         }
+    }
+
+    fn add_global<T: ToString>(&mut self, global: T) {
+        self.global.push(global.to_string())
     }
 
     fn add_includes(&mut self, includes: &[&str]) {
@@ -91,6 +97,26 @@ macro_rules! block_getter {
     }
 }
 
+
+macro_rules! block_accessers {
+    ($name:ident, $setter:ident, $config:ty) => {
+
+        pub fn $setter(&mut self, block: block_getter!($config)) {
+            self.$name = Some(block);
+        }
+
+        pub fn $name(&self, name: &str, config: &$config) -> BlockRes {
+            if self.$name.is_none() {
+                Err(BuildingBlockError::BlockMissing(
+                    stringify!($name).to_string(),
+                    self.name.clone(),
+                ))?
+            }
+            Ok(self.$name.unwrap()(name, config)?)
+        }
+    };
+}
+
 pub struct VectorConfig<'a> {
     pub dof_handler: &'a str,
 }
@@ -135,6 +161,7 @@ pub enum Block<'a> {
     SolveUnknown(&'a SolveUnknownConfig<'a>),
     EquationSetup(&'a EquationSetupConfig<'a>),
     Parameter(f64),
+    Function(&'a FunctionDef),
 }
 
 pub struct SolveUnknownConfig<'a> {
@@ -164,6 +191,7 @@ pub struct BuildingBlockFactory<'a> {
     equation_setup: Option<block_getter!(EquationSetupConfig)>,
     call: Option<block_getter!([&str])>,
     parameter: Option<block_getter!(f64)>,
+    function: Option<block_getter!(FunctionDef)>,
 }
 
 impl<'a> BuildingBlockFactory<'a> {
@@ -186,53 +214,15 @@ impl<'a> BuildingBlockFactory<'a> {
                 Ok(block)
             }),
             parameter: None,
+            function: None,
         }
     }
 
-    pub fn set_vector(&mut self, block: block_getter!(VectorConfig)) {
-        self.vector = Some(block);
-    }
+    block_accessers!(vector, set_vector, VectorConfig);
+    block_accessers!(dof_handler, set_dof_handler, DofHandlerConfig);
+    block_accessers!(sparsity_pattern, set_sparsity_pattern, SparsityPatternConfig);
 
-    pub fn vector<'b: 'a>(&self, name: &str, config: &VectorConfig<'b>) -> BlockRes {
-        if self.vector.is_none() {
-            Err(BuildingBlockError::BlockMissing(
-                "vector".to_string(),
-                self.name.clone(),
-            ))?
-        }
-        Ok(self.vector.unwrap()(name, config)?)
-    }
 
-    pub fn set_dof_handler(&mut self, block: block_getter!(DofHandlerConfig)) {
-        self.dof_handler = Some(block);
-    }
-    pub fn dof_handler<'b: 'a>(&self, name: &str, config: &DofHandlerConfig<'b>) -> BlockRes {
-        if self.dof_handler.is_none() {
-            Err(BuildingBlockError::BlockMissing(
-                "dof_handler".to_string(),
-                self.name.clone(),
-            ))?
-        }
-        Ok(self.dof_handler.unwrap()(name, config)?)
-    }
-
-    pub fn sparsity_pattern<'b: 'a>(
-        &self,
-        name: &str,
-        config: &SparsityPatternConfig<'b>,
-    ) -> BlockRes {
-        if self.sparsity_pattern.is_none() {
-            Err(BuildingBlockError::BlockMissing(
-                "sparsity_pattern".to_string(),
-                self.name.clone(),
-            ))?
-        }
-        Ok(self.sparsity_pattern.unwrap()(name, config)?)
-    }
-
-    pub fn set_sparsity_pattern(&mut self, block: block_getter!(SparsityPatternConfig)) {
-        self.sparsity_pattern = Some(block);
-    }
 
     pub fn matrix(&self, name: &str, config: &MatrixConfig<'_>) -> BlockRes {
         if self.matrix.is_none() {
@@ -362,11 +352,14 @@ impl<'a> BuildingBlockFactory<'a> {
         block.main.push(format!("// {}", content));
         block
     }
+
+
+    block_accessers!(function, set_function, FunctionDef);
 }
 
 #[derive(Error, Debug)]
 pub enum BuildingBlockError {
-    #[error("block {0} missing in factory {1}")]
+    #[error("block '{0}' missing in factory '{1}'")]
     BlockMissing(String, String),
     #[error("wrong input supplied to block {0}")]
     WrongInput(String),

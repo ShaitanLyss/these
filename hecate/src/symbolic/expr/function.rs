@@ -1,29 +1,31 @@
+use std::collections::HashMap;
+
+use itertools::Itertools;
+
 use super::*;
 
 #[derive(Clone)]
 pub struct Func {
     name: String,
-    args: Vec<Symbol>,
+    args: Vec<Box<dyn Expr>>,
 }
 
 impl Func {
-    pub fn new<'a, T: IntoIterator<Item = &'a str>>(name: &str, args: T) -> Self {
+    pub fn new<'a, T: IntoIterator<Item = &'a dyn Expr>>(name: &str, args: T) -> Self {
         Func {
             name: name.to_string(),
             args: args
                 .into_iter()
-                .map(|s| Symbol {
-                    name: s.to_string(),
-                })
+                .map(|expr| expr.clone_box())
                 .collect(),
         }
     }
 
-    pub fn new_move(name: String, args: Vec<Symbol>) -> Func {
+    pub fn new_move(name: String, args: Vec<Box<dyn Expr>>) -> Func {
         Func { name, args }
     }
 
-    pub fn new_move_box(name: String, args: Vec<Symbol>) -> Box<dyn Expr> {
+    pub fn new_move_box(name: String, args: Vec<Box<dyn Expr>>) -> Box<dyn Expr> {
         Box::new(Func::new_move(name, args))
     }
 
@@ -74,11 +76,8 @@ impl Expr for Func {
             .as_any()
             .downcast_ref::<Vec<Box<dyn Expr>>>()
             .unwrap();
-        let params: Vec<_> = params
-            .iter()
-            .map(|v| v.as_symbol().expect("Not a symbol"))
-            .collect();
-        Box::new(Func { name, args: params })
+
+        Box::new(Func { name, args: params.to_vec() })
     }
 
     fn clone_box(&self) -> Box<dyn Expr> {
@@ -94,11 +93,25 @@ impl Expr for Func {
     }
 
     fn to_cpp(&self) -> String {
-        self.name
-            .replace("^n-1", "_prev")
-            .replace("^n", "")
-            .to_lowercase()
+
+        if !self.name.contains("^") && self.name.len() > 1 {
+            format!("Kokkos::{}({})", self.name, self.args.iter().map(|x| x.to_cpp()).collect_vec().join(", "))
+        } else {
+            self.name
+                .replace("^n-1", "_prev")
+                .replace("^n", "")
+                .to_lowercase()
+        }
     }
+}
+
+lazy_static::lazy_static! {
+    static ref cpp_functions_names: HashMap<&'static str, &'static str> = {
+        let res = HashMap::from([("sin", "sin"), ("cos", "cos"), ("sqrt", "sqrt")]);
+
+        return res
+    };
+
 }
 
 impl fmt::Debug for Func {

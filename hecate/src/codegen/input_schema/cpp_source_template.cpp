@@ -7,6 +7,18 @@ const int dim = 2;
 using data_type = double;
 
 using namespace dealii;
+using namespace Kokkos::numbers;
+
+
+constexpr bool float_equals(data_type a, data_type b) {
+  const data_type base_epsilon = 1e-8;
+  const data_type epsilon = base_epsilon * std::max(1.0, std::max(std::abs(a), std::abs(b)));
+  return Kokkos::fabs(b - a) < epsilon;
+}
+
+
+{{ global }}
+
 
 class Sim {
 public:

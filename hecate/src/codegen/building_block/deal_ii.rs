@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use itertools::Itertools;
 use regex::{Captures, Regex};
 
 use crate::symbolic::*;
@@ -7,6 +8,8 @@ use crate::{
     Equation, Expr,
     codegen::input_schema::{FiniteElement, mesh::HyperCubeMesh},
 };
+mod function_def;
+use function_def::function_def_to_deal_ii_code;
 
 use super::{
     BuildingBlock, BuildingBlockError, BuildingBlockFactory, DofHandlerConfig, EquationSetupConfig,
@@ -229,8 +232,34 @@ void Sim::{name}() {{
         Ok(block)
     });
 
+    factory.set_function(&|name, function_def| {
+        let mut block = BuildingBlock::new();
+
+        block.add_includes(&["deal.II/base/function.h"]);
+
+        let function_code = function_def_to_deal_ii_code(function_def).trim().split("\n").map(|line| format!("    {line}")).collect_vec().join("\n");
+
+        block.add_global(
+            format!(
+                r"
+class {name} : public Function<dim> {{
+public:
+  virtual double value(const Point<dim> &point,
+                       const unsigned int component = 0) const override {{
+{function_code}
+  }}
+}};
+"
+            )
+            .trim(),
+        );
+
+        Ok(block)
+    });
+
     factory
 }
+
 
 fn equation_to_deall_ii_setup_code(
     equation: &Equation,

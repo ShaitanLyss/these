@@ -10,6 +10,7 @@ pub mod codegen;
 pub mod js;
 pub use codegen::BuildingBlock;
 pub use std::error::Error as StdError;
+#[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
 #[cfg(not(target_family = "wasm"))]
@@ -26,6 +27,7 @@ unsafe extern "C" {
     fn __wasm_call_ctors();
 }
 
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen(start)]
 pub fn start() {
     #[cfg(target_family = "wasm")]
@@ -39,6 +41,7 @@ pub fn format_err<E: StdError + Sync + Send + 'static>(err: E) -> String {
     format!("Error: {err:?}")
 }
 
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 pub fn code_gen_from_yaml(schema_yaml: &str) -> Result<String, String> {
     let schema = InputSchema::from_yaml(schema_yaml).map_err(format_err)?;
