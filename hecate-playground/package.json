@@ -14,7 +14,7 @@
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^6.0.1",
-		"@sveltejs/kit": "^2.21.2",
+		"@sveltejs/kit": "^2.21.4",
 		"@sveltejs/vite-plugin-svelte": "^5.1.0",
 		"@tailwindcss/vite": "^4.1.8",
 		"daisyui": "^5.0.43",
@@ -22,7 +22,7 @@
 		"prettier": "^3.5.3",
 		"prettier-plugin-svelte": "^3.4.0",
 		"prettier-plugin-tailwindcss": "^0.6.12",
-		"svelte": "^5.33.14",
+		"svelte": "^5.33.19",
 		"svelte-check": "^4.2.1",
 		"svelte-rune-highlight": "^0.6.6",
 		"tailwindcss": "^4.1.8",
@@ -37,7 +37,7 @@
 	"dependencies": {
 		"@codemirror/lang-yaml": "^6.1.2",
 		"@codemirror/theme-one-dark": "^6.1.2",
-		"@selenial/hecate": "^0.1.9",
+		"@selenial/hecate": "^0.2.1",
 		"@selenial/terraform-tactics-rs": "^0.1.0",
 		"@sveltejs/adapter-static": "^3.0.8",
 		"svelte-codemirror-editor": "^1.4.1",
