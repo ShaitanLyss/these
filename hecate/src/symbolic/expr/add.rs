@@ -112,7 +112,6 @@ impl Expr for Add {
             })
             .collect();
         format!("{}", pieces.join(""))
-        
     }
 
     fn simplify(&self) -> Box<dyn Expr> {
