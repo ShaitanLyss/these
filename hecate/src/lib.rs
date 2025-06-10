@@ -4,7 +4,7 @@
 
 pub mod symbolic;
 #[cfg(target_family = "wasm")]
-use codegen::input_schema::{CodeGenError, InputSchema};
+use codegen::input_schema::InputSchema;
 pub use symbolic::*;
 pub mod codegen;
 #[cfg(not(target_arch = "wasm32"))]

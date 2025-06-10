@@ -473,6 +473,9 @@ impl InputSchema {
             functions.insert(name, function);
         }
 
+
+        // TODO: evaluate functions in expression setup code
+
         for (u, _) in &self.unknowns {
             let symbol = symbol!(u);
 
