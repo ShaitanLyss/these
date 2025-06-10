@@ -37,7 +37,7 @@
 	"dependencies": {
 		"@codemirror/lang-yaml": "^6.1.2",
 		"@codemirror/theme-one-dark": "^6.1.2",
-		"@selenial/hecate": "^0.2.1",
+		"@selenial/hecate": "^0.2.2",
 		"@selenial/terraform-tactics-rs": "^0.1.0",
 		"@sveltejs/adapter-static": "^3.0.8",
 		"svelte-codemirror-editor": "^1.4.1",
