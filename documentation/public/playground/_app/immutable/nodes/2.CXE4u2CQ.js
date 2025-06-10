@@ -31,7 +31,7 @@ let __tla = (async () => {
       }
     });
   }
-  const tg = "" + new URL("../assets/hecate_bg.BmuyVLFa.wasm", import.meta.url).href, ig = async (n = {}, e) => {
+  const tg = "" + new URL("../assets/hecate_bg.npNVEIBO.wasm", import.meta.url).href, ig = async (n = {}, e) => {
     let t;
     if (e.startsWith("data:")) {
       const i = e.replace(/^data:.*?base64,/, "");
