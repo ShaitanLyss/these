@@ -9,7 +9,7 @@ use thiserror::Error;
 use crate::{Equation, Expr, Integer};
 
 #[derive(Error, Debug, PartialEq)]
-pub enum ParseError {
+pub enum ParseExprError {
     #[error("bad equation: {0}")]
     Equation(#[from] ParseEquationError),
     #[error("parse integer: {0}")]
@@ -35,9 +35,9 @@ pub enum ParseEquationError {
     #[error("empty operand")]
     EmptyOperand,
     #[error("invalid lhs: {0}")]
-    InvalidLhs(Box<ParseError>),
+    InvalidLhs(Box<ParseExprError>),
     #[error("invalid rhs: {0}")]
-    InvalidRhs(Box<ParseError>),
+    InvalidRhs(Box<ParseExprError>),
 }
 
 impl FromStr for Integer {
@@ -49,7 +49,7 @@ impl FromStr for Integer {
 }
 
 impl FromStr for Box<dyn Expr> {
-    type Err = ParseError;
+    type Err = ParseExprError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse_expr(s)
@@ -96,7 +96,7 @@ impl FromStr for Symbol {
 #[derive(Error, Debug, PartialEq)]
 pub enum ParseAddError {
     #[error("bad operand: {0}")]
-    BadOperand(#[from] Box<ParseError>),
+    BadOperand(#[from] Box<ParseExprError>),
 }
 
 impl FromStr for Add {
@@ -105,7 +105,7 @@ impl FromStr for Add {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Add::new_v2(
             split_root(s, &['+', '-'])
-                .map(|(prev, piece)| -> Result<Box<dyn Expr>, Box<ParseError>> {
+                .map(|(prev, piece)| -> Result<Box<dyn Expr>, Box<ParseExprError>> {
                     let mut op: Box<dyn Expr> = piece.parse().map_err(|e| Box::new(e))?;
                     if let Some('-') = prev {
                         op = -op;
@@ -120,7 +120,7 @@ impl FromStr for Add {
 #[derive(Error, Debug, PartialEq)]
 pub enum ParseMulError {
     #[error("bad operand: {0}")]
-    BadOperand(#[from] Box<ParseError>),
+    BadOperand(#[from] Box<ParseExprError>),
 }
 
 impl FromStr for Mul {
@@ -129,7 +129,7 @@ impl FromStr for Mul {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Mul::new_move(
             split_root(s, &['*', '/'])
-                .map(|(prev, piece)| -> Result<Box<dyn Expr>, Box<ParseError>> {
+                .map(|(prev, piece)| -> Result<Box<dyn Expr>, Box<ParseExprError>> {
                     let mut op: Box<dyn Expr> = piece.parse().map_err(|e| Box::new(e))?;
                     if let Some('/') = prev {
                         op = op.ipow(-1);
@@ -154,11 +154,11 @@ pub enum ParseFunctionError {
     #[error("wrong number of arguments for {0}: {1}, expected: {2}")]
     BadArgCount(String, usize, String),
     #[error("invalid function expression: {0}")]
-    InvalidFuncExpr(Box<ParseError>),
+    InvalidFuncExpr(Box<ParseExprError>),
     #[error("invalid order format: {0}, {1}")]
     InvalidOrderFormat(String, ParseIntError),
     #[error("invalid argument")]
-    InvalidArg(#[from] Box<ParseError>),
+    InvalidArg(#[from] Box<ParseExprError>),
 }
 
 pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunctionError> {
@@ -206,9 +206,9 @@ pub enum ParsePowError {
     #[error("invalid pow format: {0}, expected 'base^exponent'")]
     InvalidFormat(String),
     #[error("invalid expression for base: {0}, {1}")]
-    InvalidBase(String, Box<ParseError>),
+    InvalidBase(String, Box<ParseExprError>),
     #[error("invalid expression for exponent: {0}, {1}")]
-    InvalidExponent(String, Box<ParseError>),
+    InvalidExponent(String, Box<ParseExprError>),
 }
 
 impl FromStr for expr::Pow {
@@ -232,7 +232,7 @@ impl FromStr for expr::Pow {
     }
 }
 
-pub fn parse_expr(s: &str) -> Result<Box<dyn Expr>, ParseError> {
+pub fn parse_expr(s: &str) -> Result<Box<dyn Expr>, ParseExprError> {
     let s = s.trim();
     Ok(if s.split("=").collect::<Vec<_>>().len() >= 2 {
         Box::new(s.parse::<Equation>()?)
@@ -263,7 +263,7 @@ pub fn parse_expr(s: &str) -> Result<Box<dyn Expr>, ParseError> {
         let closer = closers[i_opener];
 
         if closer != last {
-            return Err(ParseError::BracketMismatch(openers[i_opener], last));
+            return Err(ParseExprError::BracketMismatch(openers[i_opener], last));
         }
         return parse_expr(&s[1..s.len() - 1]);
     } else if s.contains("^") {
@@ -381,7 +381,7 @@ mod tests {
         let res = parse_expr("1 ==");
         assert_eq!(
             res,
-            Err(ParseError::Equation(
+            Err(ParseExprError::Equation(
                 ParseEquationError::WrongNumberOfOperands(3)
             ))
         )
@@ -392,7 +392,7 @@ mod tests {
         let res = parse_expr("1 =");
         assert_eq!(
             res,
-            Err(ParseError::Equation(ParseEquationError::EmptyOperand))
+            Err(ParseExprError::Equation(ParseEquationError::EmptyOperand))
         )
     }
 

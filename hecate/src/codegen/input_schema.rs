@@ -1,4 +1,6 @@
 use crate::StdError;
+use crate::codegen::building_block::ApplyBoundaryConditionConfig;
+use crate::ops::ParseExprError;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -19,7 +21,7 @@ mod unit;
 use dyn_clone::DynClone;
 use quantity::{Length, RANGE_PATTERN, Speed, Time};
 
-use mesh::{Mesh, MeshEnum};
+use mesh::MeshEnum;
 use range::Range;
 use serde::{Deserialize, Serialize};
 use tera::Tera;
@@ -252,16 +254,45 @@ impl<'de> Deserialize<'de> for FunctionDef {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UnknownProperty {
+    Constant(i64),
+    ConstantFloat(f64),
+    Function(String),
+}
+impl UnknownProperty {
+    fn to_function_name(&self) -> String {
+        match self {
+            UnknownProperty::Constant(i) => format!("fn_{}", i.to_string().replace("-", "neg")),
+            UnknownProperty::ConstantFloat(f) => {
+                format!(
+                    "fn_{}",
+                    f.to_string().replace("-", "neg").replace(".", "dot")
+                )
+            }
+            UnknownProperty::Function(s) => format!("fn_{s}"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Unknown {
-    pub initial: String,
-    pub boundary: Option<String>,
+    pub initial: UnknownProperty,
+    pub boundary: Option<UnknownProperty>,
     pub derivative: Option<Box<Unknown>>,
+}
+
+pub struct ConstantFunction {
+    pub name: String,
+    pub value: String,
 }
 
 impl Unknown {
     pub fn visit_symbols<F: Fn(&str)>(&self, f: F) {
-        f(&self.initial);
-        if let Some(boundary) = &self.boundary {
+        if let UnknownProperty::Function(initial) = &self.initial {
+            f(initial);
+        }
+        if let Some(UnknownProperty::Function(boundary)) = &self.boundary {
             f(boundary)
         }
 
@@ -271,9 +302,11 @@ impl Unknown {
     }
 
     pub fn has_symbol(&self, s: &str) -> bool {
-        if self.initial == s {
+        if let UnknownProperty::Function(initial) = &self.initial
+            && initial == s
+        {
             true
-        } else if let Some(boundary) = &self.boundary
+        } else if let Some(UnknownProperty::Function(boundary)) = &self.boundary
             && boundary == s
         {
             true
@@ -282,6 +315,39 @@ impl Unknown {
         } else {
             false
         }
+    }
+
+    pub fn visit_props<E: StdError, F: FnMut(&UnknownProperty) -> Result<(), E>>(
+        &self,
+        mut f: F,
+    ) -> Result<(), E> {
+        f(&self.initial)?;
+        if let Some(boundary) = &self.boundary {
+            f(boundary)?;
+        }
+        if let Some(derivative) = &self.derivative {
+            derivative.visit_props(f)?;
+        }
+        Ok(())
+    }
+
+    pub fn visit_constants<E: StdError, F: FnMut(ConstantFunction) -> Result<(), E>>(
+        &self,
+        mut f: F,
+    ) -> Result<(), E> {
+        self.visit_props(|p| -> Result<(), E> {
+            match p {
+                UnknownProperty::Constant(i) => f(ConstantFunction {
+                    value: i.to_string(),
+                    name: p.to_function_name(),
+                }),
+                UnknownProperty::ConstantFloat(float) => f(ConstantFunction {
+                    value: float.to_string(),
+                    name: p.to_function_name(),
+                }),
+                _ => Ok(()),
+            }
+        })
     }
 }
 
@@ -297,6 +363,14 @@ pub enum CodeGenError {
     InvalidYaml(#[from] serde_yaml::Error),
     #[error("schema validation failed")]
     InvalidSchema(#[from] SchemaValidationError),
+    #[error("unknown missing from the schema '{0}'")]
+    UnknownUnknown(String),
+    #[error("missing boundary condition for unknown: {0}")]
+    MissingBoundary(String),
+    #[error("missing derivative for unknown: {0}")]
+    MissingDerivative(String),
+    #[error("invalid expression for function expression: {0}")]
+    InvalidFunctionExpression(ParseExprError),
 }
 
 lazy_static! {
@@ -393,7 +467,7 @@ impl InputSchema {
 
         let mut functions: HashMap<&str, String> = HashMap::with_capacity(used_functions.len());
         for (name, f) in used_functions.into_iter() {
-            let function = format!("Fn_{name}");
+            let function = format!("fn_{name}");
             blocks.create(&function, Block::Function(f))?;
             functions.insert(name, function);
         }
@@ -517,6 +591,9 @@ impl InputSchema {
         let mut solved_unknowns: HashSet<&dyn Expr> = HashSet::new();
         let vectors: &Vec<_> = &system.vectors().collect();
         let matrixes: &Vec<_> = &system.matrixes().collect();
+
+        /* Set for names of the constant functions */
+        let mut constant_functions: HashSet<String> = HashSet::new();
         for (i, equation) in system.eqs_in_solving_order().enumerate() {
             // let equation = &equation.subs(&[[Symbol::new_box("k"), Symbol::new_box("time_step")]]).as_eq().expect("equation");
             for unknown in system.equation_lhs_unknowns(equation) {
@@ -533,7 +610,59 @@ impl InputSchema {
                     }),
                 )?;
 
+                // Apply boundary conditions
+                let unknown_cpp = unknown.to_cpp();
+                let mat_name = format!("matrix_{unknown_cpp}");
+                let unknown_config = if unknown_cpp == "v" {
+                    self.unknowns
+                        .get("u")
+                        .ok_or_else(|| CodeGenError::UnknownUnknown("u".to_string()))?
+                        .derivative
+                        .as_ref()
+                        .ok_or_else(|| CodeGenError::MissingDerivative("u".to_string()))?
+                } else {
+                    self.unknowns
+                        .get(&unknown_cpp)
+                        .ok_or_else(|| CodeGenError::UnknownUnknown(unknown_cpp.to_string()))?
+                };
+                unknown_config.visit_constants(
+                    |ConstantFunction { ref name, value }| -> Result<(), CodeGenError> {
+                        if constant_functions.contains(name) {
+                            return Ok(());
+                        }
+                        constant_functions.insert(name.to_string());
+                        blocks.create(
+                            name,
+                            Block::Function(&FunctionDef::Expr(
+                                value
+                                    .parse()
+                                    .map_err(|e| CodeGenError::InvalidFunctionExpression(e))?,
+                            )),
+                        )?;
+                        Ok(())
+                    },
+                )?;
+                let function = &unknown_config
+                    .boundary
+                    .as_ref()
+                    .ok_or_else(|| CodeGenError::MissingBoundary(unknown_cpp.to_string()))?
+                    .to_function_name();
+
                 blocks.newline();
+                blocks.create(
+                    &format!("apply_boundary_condition_{unknown_cpp}"),
+                    Block::AppyBoundaryCondition(&ApplyBoundaryConditionConfig {
+                        dof_handler,
+                        function,
+                        matrix: &mat_name,
+                        solution: &unknown_cpp,
+                        rhs,
+                    }),
+                )?;
+
+                blocks.newline();
+
+                // Solve equation for unknown
                 blocks.call(
                     unknown_solvers
                         .get(&unknown)
@@ -629,6 +758,7 @@ impl<'fa> BuildingBlockCollector<'fa> {
         block: BuildingBlock,
     ) -> Result<&'a str, BuildingBlockError> {
         if self.blocks.contains_key(name) {
+            dbg!(&block);
             Err(BuildingBlockError::BlockAlreadyExists(name.to_string()))?
         }
         if self.additional_names.contains(name) {
@@ -721,6 +851,9 @@ impl<'fa> BuildingBlockCollector<'fa> {
                 }
                 Block::Parameter(value) => self.factory.parameter(name, value)?,
                 Block::Function(function) => self.factory.function(name, function)?,
+                Block::AppyBoundaryCondition(config) => {
+                    self.factory.apply_boundary_condition(name, config)?
+                }
             },
         )?;
         Ok(name)

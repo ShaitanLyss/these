@@ -3,7 +3,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::{ops::ParseError, *};
+use super::{ops::ParseExprError, *};
 
 #[derive(Clone)]
 pub struct Eq {
@@ -29,7 +29,7 @@ pub enum Error {
     #[error("parsed expression is not an equation")]
     NotAnEquation,
     #[error("{0}")]
-    FailedParsing(#[from] ParseError),
+    FailedParsing(#[from] ParseExprError),
 }
 
 impl<'de> serde::de::Visitor<'de> for ExprDeserializeVisitor {

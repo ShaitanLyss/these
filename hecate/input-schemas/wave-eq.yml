@@ -28,6 +28,7 @@ unknowns:
     boundary: g
     derivative:
       initial: v0
+      boundary: 0
 
 
 functions:

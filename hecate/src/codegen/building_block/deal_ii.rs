@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use itertools::Itertools;
 use regex::{Captures, Regex};
 
+use crate::codegen::building_block::ApplyBoundaryConditionConfig;
 use crate::symbolic::*;
 use crate::{
     Equation, Expr,
@@ -16,6 +17,16 @@ use super::{
     ExprCodeGenError, MatrixConfig, ShapeMatrixConfig, SolveUnknownConfig, SparsityPatternConfig,
     VectorConfig,
 };
+
+macro_rules! lines {
+    ($s:expr) => {
+        format!($s)
+            .trim()
+            .split("\n")
+            .map(|s| s.to_string())
+            .collect_vec()
+    };
+}
 
 pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
     let mut factory = BuildingBlockFactory::new("deal.II");
@@ -233,16 +244,25 @@ void Sim::{name}() {{
     });
 
     factory.set_function(&|name, function_def| {
+        let fn_name = name.split("_").last().expect("name is not empty");
+        let class_name = format!("Fn_{fn_name}");
         let mut block = BuildingBlock::new();
 
         block.add_includes(&["deal.II/base/function.h"]);
 
-        let function_code = function_def_to_deal_ii_code(function_def).trim().split("\n").map(|line| format!("    {line}")).collect_vec().join("\n");
+        let function_code = function_def_to_deal_ii_code(function_def)
+            .trim()
+            .split("\n")
+            .map(|line| format!("    {line}"))
+            .collect_vec()
+            .join("\n");
+
+        block.data.push(format!("{class_name} {name}"));
 
         block.add_global(
             format!(
                 r"
-class {name} : public Function<dim> {{
+class {class_name} : public Function<dim> {{
 public:
   virtual double value(const Point<dim> &point,
                        const unsigned int component = 0) const override {{
@@ -257,9 +277,41 @@ public:
         Ok(block)
     });
 
+    factory.set_apply_boundary_condition(&|_name,
+                                           ApplyBoundaryConditionConfig {
+                                               function,
+                                               dof_handler,
+                                               matrix,
+                                               solution,
+                                               rhs,
+                                           }| {
+        let mut block = BuildingBlock::new();
+
+        block.add_includes(&[
+            "deal.II/numerics/vector_tools_boundary.h",
+            "deal.II/numerics/matrix_tools.h",
+        ]);
+
+        block.main.extend(lines!(
+            r"
+// Apply boundary condition to the equation for solving {solution}
+{{
+  {function}.set_time(time);
+
+  std::map<types::global_dof_index, double> boundary_values;
+  VectorTools::interpolate_boundary_values(
+      {dof_handler}, 0, {function}, boundary_values);
+  MatrixTools::apply_boundary_values(boundary_values, {matrix}, {solution},
+                                     {rhs});
+}}
+               "
+        ));
+
+        Ok(block)
+    });
+
     factory
 }
-
 
 fn equation_to_deall_ii_setup_code(
     equation: &Equation,

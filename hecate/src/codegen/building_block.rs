@@ -97,10 +97,8 @@ macro_rules! block_getter {
     }
 }
 
-
 macro_rules! block_accessers {
     ($name:ident, $setter:ident, $config:ty) => {
-
         pub fn $setter(&mut self, block: block_getter!($config)) {
             self.$name = Some(block);
         }
@@ -162,6 +160,7 @@ pub enum Block<'a> {
     EquationSetup(&'a EquationSetupConfig<'a>),
     Parameter(f64),
     Function(&'a FunctionDef),
+    AppyBoundaryCondition(&'a ApplyBoundaryConditionConfig<'a>),
 }
 
 pub struct SolveUnknownConfig<'a> {
@@ -175,6 +174,27 @@ pub struct EquationSetupConfig<'a> {
     pub unknown: &'a dyn Expr,
     pub vectors: &'a [&'a dyn Expr],
     pub matrixes: &'a [&'a dyn Expr],
+}
+
+pub struct VectorFromFnConfig<'a> {
+    pub function: &'a str,
+    pub dof_handler: &'a str,
+    pub element: &'a str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetIteration {
+    Next,
+    Current,
+    Previous
+}
+
+pub struct ApplyBoundaryConditionConfig<'a> {
+    pub function: &'a str,
+    pub dof_handler: &'a str,
+    pub matrix: &'a str,
+    pub solution : &'a str,
+    pub rhs: &'a str,
 }
 
 #[derive(Clone)]
@@ -192,6 +212,8 @@ pub struct BuildingBlockFactory<'a> {
     call: Option<block_getter!([&str])>,
     parameter: Option<block_getter!(f64)>,
     function: Option<block_getter!(FunctionDef)>,
+    vector_from_function: Option<block_getter!(VectorFromFnConfig)>,
+    apply_boundary_condition: Option<block_getter!(ApplyBoundaryConditionConfig)>,
 }
 
 impl<'a> BuildingBlockFactory<'a> {
@@ -215,14 +237,28 @@ impl<'a> BuildingBlockFactory<'a> {
             }),
             parameter: None,
             function: None,
+            vector_from_function: None,
+            apply_boundary_condition: None,
         }
     }
 
     block_accessers!(vector, set_vector, VectorConfig);
     block_accessers!(dof_handler, set_dof_handler, DofHandlerConfig);
-    block_accessers!(sparsity_pattern, set_sparsity_pattern, SparsityPatternConfig);
-
-
+    block_accessers!(
+        sparsity_pattern,
+        set_sparsity_pattern,
+        SparsityPatternConfig
+    );
+    block_accessers!(
+        vector_from_function,
+        set_vector_from_function,
+        VectorFromFnConfig
+    );
+    block_accessers!(
+        apply_boundary_condition,
+        set_apply_boundary_condition,
+        ApplyBoundaryConditionConfig
+    );
 
     pub fn matrix(&self, name: &str, config: &MatrixConfig<'_>) -> BlockRes {
         if self.matrix.is_none() {
@@ -352,7 +388,6 @@ impl<'a> BuildingBlockFactory<'a> {
         block.main.push(format!("// {}", content));
         block
     }
-
 
     block_accessers!(function, set_function, FunctionDef);
 }
