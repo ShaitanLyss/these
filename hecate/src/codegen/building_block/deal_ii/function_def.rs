@@ -1,6 +1,6 @@
 use crate::{
     Symbol,
-    codegen::input_schema::{Condition, ConditionedFunction, FunctionDef, range::Range},
+    codegen::input_schema::{Condition, ConditionedFunction, FunctionDef},
 };
 
 pub(super) fn function_def_to_deal_ii_code(function_def: &FunctionDef) -> String {

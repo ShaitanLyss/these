@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
 use super::*;
-use crate::{symbol, symbols};
+use crate::symbol;
 use lazy_static::lazy_static;
 
 #[derive(Debug, Clone)]

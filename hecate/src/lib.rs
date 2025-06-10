@@ -3,6 +3,7 @@
 #![allow(non_snake_case)]
 
 pub mod symbolic;
+#[cfg(target_family = "wasm")]
 use codegen::input_schema::{CodeGenError, InputSchema};
 pub use symbolic::*;
 pub mod codegen;
@@ -12,6 +13,7 @@ pub use codegen::BuildingBlock;
 pub use std::error::Error as StdError;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
+
 
 #[cfg(not(target_family = "wasm"))]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
