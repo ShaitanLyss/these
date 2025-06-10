@@ -91,6 +91,30 @@ impl Expr for Add {
         format!("{}", pieces.join(""))
     }
 
+    // Same as str(&self) but calls to_cpp() on each operand
+    fn to_cpp(&self) -> String {
+        let pieces: Vec<_> = self
+            .operands
+            .iter()
+            .enumerate()
+            .map(|(i, op)| match KnownExpr::from_expr_box(op) {
+                KnownExpr::Mul(Mul { operands }) if operands.len() > 0 && i > 0 => {
+                    match KnownExpr::from_expr_box(&operands[0]) {
+                        KnownExpr::Integer(Integer { value: -1 }) => {
+                            let mul = op.to_cpp();
+                            format!(" - {}", mul[1..].to_string())
+                        }
+                        _ => format!(" + {}", op.to_cpp()),
+                    }
+                }
+                _ if i > 0 => format!(" + {}", op.to_cpp()),
+                _ => op.to_cpp(),
+            })
+            .collect();
+        format!("{}", pieces.join(""))
+        
+    }
+
     fn simplify(&self) -> Box<dyn Expr> {
         if self.operands.len() == 2 {
             match (self.operands[0].known_expr(), self.operands[1].known_expr()) {

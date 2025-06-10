@@ -455,8 +455,8 @@ impl InputSchema {
         let mut substitutions = Vec::with_capacity(self.functions.len() + self.unknowns.len());
 
         // Identify functions used for the current problem
-        let mut used_functions: HashMap<&str, &FunctionDef> =
-            HashMap::with_capacity(self.functions.len());
+        let mut used_functions: IndexMap<&str, &FunctionDef> =
+            IndexMap::with_capacity(self.functions.len());
 
         for (name, f) in &self.functions {
             if equations.iter().any(|eq| eq.has(&Symbol::new(name)))
@@ -830,7 +830,7 @@ impl<'fa> BuildingBlockCollector<'fa> {
     fn collect(mut self, dof_handler: &str, sparsity_pattern: &str) -> BlockRes {
         let mut res = BuildingBlock::new();
 
-        let mut additional_blocks: HashMap<String, BuildingBlock> = HashMap::new();
+        let mut additional_blocks: IndexMap<String, BuildingBlock> = IndexMap::new();
 
         let tmp_vector_config = VectorConfig { dof_handler };
         let tmp_matrix_config = MatrixConfig { sparsity_pattern };
