@@ -1,6 +1,4 @@
 use indexmap::IndexMap;
-use itertools::Itertools;
-
 use super::*;
 
 #[derive(Clone)]

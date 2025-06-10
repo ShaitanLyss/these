@@ -16,11 +16,11 @@ use wasm_bindgen::prelude::*;
 #[cfg(not(target_family = "wasm"))]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-use derive_alias::derive_alias;
-
-derive_alias! {
-    derive_schema => #[derive(Serialize, Deserialize, PartialEq, PartialOrd)]
-}
+// use derive_alias::derive_alias;
+//
+// derive_alias! {
+//     derive_schema => #[derive(Serialize, Deserialize, PartialEq, PartialOrd)]
+// }
 
 #[cfg(target_family = "wasm")]
 unsafe extern "C" {

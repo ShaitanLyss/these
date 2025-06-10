@@ -24,9 +24,11 @@ pub struct BuildingBlock {
     pub methods_defs: Vec<String>,
     pub methods_impls: Vec<String>,
     pub main: Vec<String>,
+    pub main_setup: Vec<String>,
     pub additional_vectors: HashSet<String>,
     pub additional_matrixes: HashSet<String>,
     pub global: Vec<String>,
+    pub output: Vec<String>,
 }
 
 impl BuildingBlock {
@@ -40,9 +42,11 @@ impl BuildingBlock {
             methods_defs: Vec::new(),
             methods_impls: Vec::new(),
             main: Vec::new(),
+            main_setup: Vec::new(),
             additional_vectors: HashSet::new(),
             additional_matrixes: HashSet::new(),
             global: Vec::new(),
+            output: Vec::new(),
         }
     }
 
@@ -152,6 +156,13 @@ pub struct SparsityPatternConfig<'a> {
     pub dof_handler: &'a str,
 }
 
+pub struct InitialConditionConfig<'a> {
+    pub dof_handler: &'a str,
+    pub function: &'a str,
+    pub element: &'a str,
+    pub target: &'a str,
+}
+
 #[derive(Clone)]
 pub enum Block<'a> {
     Matrix(&'a MatrixConfig<'a>),
@@ -161,6 +172,7 @@ pub enum Block<'a> {
     Parameter(f64),
     Function(&'a FunctionDef),
     AppyBoundaryCondition(&'a ApplyBoundaryConditionConfig<'a>),
+    InitialCondition(&'a InitialConditionConfig<'a>),
 }
 
 pub struct SolveUnknownConfig<'a> {
@@ -186,14 +198,14 @@ pub struct VectorFromFnConfig<'a> {
 pub enum TargetIteration {
     Next,
     Current,
-    Previous
+    Previous,
 }
 
 pub struct ApplyBoundaryConditionConfig<'a> {
     pub function: &'a str,
     pub dof_handler: &'a str,
     pub matrix: &'a str,
-    pub solution : &'a str,
+    pub solution: &'a str,
     pub rhs: &'a str,
 }
 
@@ -214,6 +226,8 @@ pub struct BuildingBlockFactory<'a> {
     function: Option<block_getter!(FunctionDef)>,
     vector_from_function: Option<block_getter!(VectorFromFnConfig)>,
     apply_boundary_condition: Option<block_getter!(ApplyBoundaryConditionConfig)>,
+    initial_condition: Option<block_getter!(InitialConditionConfig)>,
+    add_vector_output: Option<block_getter!(str)>,
 }
 
 impl<'a> BuildingBlockFactory<'a> {
@@ -239,6 +253,8 @@ impl<'a> BuildingBlockFactory<'a> {
             function: None,
             vector_from_function: None,
             apply_boundary_condition: None,
+            initial_condition: None,
+            add_vector_output: None,
         }
     }
 
@@ -259,6 +275,12 @@ impl<'a> BuildingBlockFactory<'a> {
         set_apply_boundary_condition,
         ApplyBoundaryConditionConfig
     );
+    block_accessers!(
+        initial_condition,
+        set_initial_condition,
+        InitialConditionConfig
+    );
+    block_accessers!(add_vector_output, set_add_vector_output, str);
 
     pub fn matrix(&self, name: &str, config: &MatrixConfig<'_>) -> BlockRes {
         if self.matrix.is_none() {

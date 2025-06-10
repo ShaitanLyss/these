@@ -1,5 +1,5 @@
 use crate::StdError;
-use crate::codegen::building_block::ApplyBoundaryConditionConfig;
+use crate::codegen::building_block::{ApplyBoundaryConditionConfig, InitialConditionConfig};
 use crate::ops::ParseExprError;
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -405,7 +405,7 @@ impl InputSchema {
         let Solve {
             equations,
             mesh,
-            element,
+            element: _,
         } = &self.solve;
 
         self.meshes
@@ -428,6 +428,7 @@ impl InputSchema {
 
         Ok(())
     }
+
     pub fn generate_cpp_sources(&self) -> Result<String, CodeGenError> {
         self.validate()?;
         let factory = deal_ii_factory();
@@ -592,14 +593,19 @@ impl InputSchema {
         let vectors: &Vec<_> = &system.vectors().collect();
         let matrixes: &Vec<_> = &system.matrixes().collect();
 
-        /* Set for names of the constant functions */
+        /* Create a set to create identic constant functions only once */
         let mut constant_functions: HashSet<String> = HashSet::new();
+
+        // Solve equations
         for (i, equation) in system.eqs_in_solving_order().enumerate() {
-            // let equation = &equation.subs(&[[Symbol::new_box("k"), Symbol::new_box("time_step")]]).as_eq().expect("equation");
+            // Iterate through unknowns in the equation to find the unknown to solve for (TODO: for now only one unknown per equation is supported)
             for unknown in system.equation_lhs_unknowns(equation) {
+                // Solve unknowns only once
                 if solved_unknowns.contains(&unknown) {
                     continue;
                 }
+
+                // Setup equation for solving the unknown
                 blocks.create(
                     &format!("equation_{i}"),
                     Block::EquationSetup(&EquationSetupConfig {
@@ -610,7 +616,8 @@ impl InputSchema {
                     }),
                 )?;
 
-                // Apply boundary conditions
+                // Begin boundary condition
+                // Retrive initial and boundary conditions for the unknown
                 let unknown_cpp = unknown.to_cpp();
                 let mat_name = format!("matrix_{unknown_cpp}");
                 let unknown_config = if unknown_cpp == "v" {
@@ -625,6 +632,20 @@ impl InputSchema {
                         .get(&unknown_cpp)
                         .ok_or_else(|| CodeGenError::UnknownUnknown(unknown_cpp.to_string()))?
                 };
+
+                // Setup initial values
+                let initial = &unknown_config.initial;
+                blocks.create(
+                    &format!("initial_condition_{unknown_cpp}"),
+                    Block::InitialCondition(&InitialConditionConfig {
+                        dof_handler,
+                        element,
+                        function: &initial.to_function_name(),
+                        target: &format!("{unknown_cpp}_prev"),
+                    }),
+                )?;
+
+                // Create constant functions associated needed by the unknown
                 unknown_config.visit_constants(
                     |ConstantFunction { ref name, value }| -> Result<(), CodeGenError> {
                         if constant_functions.contains(name) {
@@ -642,12 +663,15 @@ impl InputSchema {
                         Ok(())
                     },
                 )?;
+
+                // Retrive boundary condition function
                 let function = &unknown_config
                     .boundary
                     .as_ref()
                     .ok_or_else(|| CodeGenError::MissingBoundary(unknown_cpp.to_string()))?
                     .to_function_name();
 
+                // Apply boundary condition
                 blocks.newline();
                 blocks.create(
                     &format!("apply_boundary_condition_{unknown_cpp}"),
@@ -660,9 +684,8 @@ impl InputSchema {
                     }),
                 )?;
 
-                blocks.newline();
-
                 // Solve equation for unknown
+                blocks.newline();
                 blocks.call(
                     unknown_solvers
                         .get(&unknown)
@@ -671,14 +694,34 @@ impl InputSchema {
                 )?;
                 blocks.newline();
                 solved_unknowns.insert(unknown);
+                // End boundary condition
             }
         }
+        // End Solve Equations
 
+        // Output results
+        blocks.call("output_results", &[])?;
+        for unknown in &system.unknowns {
+            let unknown = unknown.to_cpp();
+            blocks.add_vector_output(&unknown)?;
+        }
+
+        // Swap new values with previous values to move on to the next step
+        blocks.newline();
+        blocks.comment("Swap new values with previous values for the next step");
+        for unknown in &system.unknowns {
+            let unknown = unknown.to_cpp();
+            let unknown_prev = format!("{unknown}_prev");
+            blocks.call("swap", &[&unknown, &unknown_prev])?;
+        }
+
+        // Setup context for filling the template
         let mut context: tera::Context = blocks.collect(dof_handler, sparsity_pattern)?.into();
         context.insert("time_start", &self.time.start.seconds());
         context.insert("time_end", &self.time.end.seconds());
         context.insert("time_step", &self.time_step.seconds());
 
+        // Fill the template with the context
         Ok(TEMPLATES.render("cpp_source", &context)?)
     }
 }
@@ -704,7 +747,9 @@ impl From<BuildingBlock> for tera::Context {
             additional_vectors: _,
             additional_matrixes: _,
             main,
+            main_setup,
             global,
+            output,
         } = block;
         context.insert(
             "includes",
@@ -713,6 +758,18 @@ impl From<BuildingBlock> for tera::Context {
                 .map(|s| format!("#include <{s}>"))
                 .join("\n"),
         );
+
+        macro_rules! insert_lines {
+            ($key:expr, $source:ident, $indent:literal) => {
+                context.insert(
+                    $key,
+                    &$source
+                        .into_iter()
+                        .map(|s| format!("{}{s}", " ".repeat($indent)))
+                        .join("\n"),
+                );
+            };
+        }
 
         context.insert("data", &to_cpp_lines("  ", data));
         context.insert("setup", &to_cpp_lines("    ", setup));
@@ -726,10 +783,9 @@ impl From<BuildingBlock> for tera::Context {
         );
         context.insert("methods_defs", &to_cpp_lines("  ", methods_defs));
         context.insert("methods_impls", &methods_impls.into_iter().join("\n"));
-        context.insert(
-            "main",
-            &main.into_iter().map(|s| format!("    {s}")).join("\n"),
-        );
+        insert_lines!("main_setup", main_setup, 2);
+        insert_lines!("main", main, 4);
+        insert_lines!("output", output, 2);
 
         context.insert("global", &global.join("\n\n\n"));
         context
@@ -814,9 +870,11 @@ impl<'fa> BuildingBlockCollector<'fa> {
                 methods_defs,
                 methods_impls,
                 main,
+                main_setup,
                 additional_vectors: _,
                 additional_matrixes: _,
                 global,
+                output,
             },
         ) in self.blocks
         {
@@ -826,8 +884,10 @@ impl<'fa> BuildingBlockCollector<'fa> {
             res.constructor.extend(constructor);
             res.methods_defs.extend(methods_defs);
             res.methods_impls.extend(methods_impls);
+            res.main_setup.extend(main_setup);
             res.main.extend(main);
             res.global.extend(global);
+            res.output.extend(output);
         }
 
         Ok(res)
@@ -854,6 +914,7 @@ impl<'fa> BuildingBlockCollector<'fa> {
                 Block::AppyBoundaryCondition(config) => {
                     self.factory.apply_boundary_condition(name, config)?
                 }
+                Block::InitialCondition(config) => self.factory.initial_condition(name, config)?,
             },
         )?;
         Ok(name)
@@ -879,5 +940,11 @@ impl<'fa> BuildingBlockCollector<'fa> {
             format!("comment#{}", self.blocks.len()),
             self.factory.comment(content),
         );
+    }
+
+    fn add_vector_output(&mut self, unknown: &str) -> Result<(), BuildingBlockError> {
+        let name = format!("add_vector_output_{unknown}");
+        self.insert(&name, self.factory.add_vector_output(&name, unknown)?)?;
+        Ok(())
     }
 }

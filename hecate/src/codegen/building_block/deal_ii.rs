@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use itertools::Itertools;
 use regex::{Captures, Regex};
 
-use crate::codegen::building_block::ApplyBoundaryConditionConfig;
+use crate::codegen::building_block::{ApplyBoundaryConditionConfig, InitialConditionConfig};
 use crate::symbolic::*;
 use crate::{
     Equation, Expr,
@@ -306,6 +306,38 @@ public:
 }}
                "
         ));
+
+        Ok(block)
+    });
+
+    factory.set_initial_condition(&|_name,
+                                    InitialConditionConfig {
+                                        dof_handler,
+                                        function,
+                                        element,
+                                        target,
+                                    }| {
+        let mut block = BuildingBlock::new();
+
+        block.add_includes(&["deal.II/numerics/vector_tools_project.h"]);
+
+        let unknown = target.split("_").next().unwrap();
+
+        block.main_setup.extend(lines!(
+            r"// Apply Intial Condition for {unknown} 
+VectorTools::project({dof_handler}, constraints, QGauss<dim>({element}.degree + 1),
+                     {function}, {target});"
+        ));
+
+        Ok(block)
+    });
+
+    factory.set_add_vector_output(&|_name, vector| {
+        let mut block = BuildingBlock::new();
+
+        block
+            .output
+            .push(format!(r#"data_out.add_data_vector({vector}, "{vector}");"#));
 
         Ok(block)
     });
