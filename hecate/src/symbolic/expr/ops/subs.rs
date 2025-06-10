@@ -85,6 +85,6 @@ mod tests {
         let s = [[x.clone_box(), Symbol::new_box("point[0]")]];
         let res = subs(&expr, &s);
 
-        assert_eq!(res.to_cpp(), "sin(2 * point[0])",)
+        assert_eq!(res.to_cpp(), "Kokkos::sin(2 * point[0])",)
     }
 }

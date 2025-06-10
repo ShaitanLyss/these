@@ -89,13 +89,13 @@ pub struct Solve {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InputSchema {
-    pub meshes: HashMap<String, MeshEnum>,
-    pub equations: HashMap<String, Equation>,
+    pub meshes: IndexMap<String, MeshEnum>,
+    pub equations: IndexMap<String, Equation>,
     pub time: Range<Time>,
     pub time_step: Time,
-    pub parameters: HashMap<String, QuantityEnum>,
-    pub unknowns: HashMap<String, Unknown>,
-    pub functions: HashMap<String, FunctionDef>,
+    pub parameters: IndexMap<String, QuantityEnum>,
+    pub unknowns: IndexMap<String, Unknown>,
+    pub functions: IndexMap<String, FunctionDef>,
     pub solve: Solve,
 }
 
