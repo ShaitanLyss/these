@@ -1,10 +1,10 @@
-import { c as Pa, s as Lp, f as xt, d as $e, g as Nc, t as Ic } from "../chunks/ChhizTbv.js";
-import { J as Li, p as Da, h as Ra, t as _p, aL as Np, d as Ea, a as Ip, f as Fp, b as Hp, c as Wp, g as us, K as We, L as Le, I as Pl, q as Dl, u as Rl, M as Ti, D as K, ah as qt, aM as ds, aN as zp, a4 as hi, a8 as ps, E as ht, aO as Vp, w as Qp, af as Gr, a3 as qp, z as Xp } from "../chunks/CLHzdWKz.js";
-import { s as Ln } from "../chunks/98t1C0Ls.js";
-import { p as ve, i as ci, r as Fc, s as Up, b as $p } from "../chunks/Ccg59MuO.js";
-import { i as jp } from "../chunks/Dx4UTkTT.js";
-import { c as Kp, o as Gp, a as Yp } from "../chunks/DUYpbP9Z.js";
-import { a as Hc, b as li, e as Jp, c as gs, i as Zp, S as eg } from "../chunks/iI-Sx4xs.js";
+import { c as Pa, s as Lp, f as xt, d as $e, g as Nc, t as Ic } from "../chunks/BIiAUV6v.js";
+import { J as Li, p as Da, h as Ra, t as _p, aL as Np, d as Ea, a as Ip, f as Fp, b as Hp, c as Wp, g as us, K as We, L as Le, I as Pl, q as Dl, u as Rl, M as Ti, D as K, ah as qt, aM as ds, aN as zp, a4 as hi, a8 as ps, E as ht, aO as Vp, w as Qp, af as Gr, a3 as qp, z as Xp } from "../chunks/D-TuGdn3.js";
+import { s as Ln } from "../chunks/DhN3w0m4.js";
+import { p as ve, i as ci, r as Fc, s as Up, b as $p } from "../chunks/fUA9DmmS.js";
+import { i as jp } from "../chunks/B3n7_GNY.js";
+import { c as Kp, o as Gp, a as Yp } from "../chunks/B9Wvj7kD.js";
+import { a as Hc, b as li, e as Jp, c as gs, i as Zp, S as eg } from "../chunks/BFfV2Fhf.js";
 let Vk;
 let __tla = (async () => {
   function Wc(n, e, t = false, i = false, s = false) {
@@ -31,7 +31,7 @@ let __tla = (async () => {
       }
     });
   }
-  const tg = "" + new URL("../assets/hecate_bg.B_QtrzMS.wasm", import.meta.url).href, ig = async (n = {}, e) => {
+  const tg = "" + new URL("../assets/hecate_bg.BmuyVLFa.wasm", import.meta.url).href, ig = async (n = {}, e) => {
     let t;
     if (e.startsWith("data:")) {
       const i = e.replace(/^data:.*?base64,/, "");
@@ -130,7 +130,7 @@ let __tla = (async () => {
       __wbindgen_string_new: fg,
       __wbindgen_init_externref_table: cg
     }
-  }, tg), ug = Wt.memory, dg = Wt.code_gen_from_yaml, pg = Wt.start, gg = Wt.sum, mg = Wt.__wbindgen_export_0, bg = Wt.__wbindgen_malloc, yg = Wt.__wbindgen_realloc, xg = Wt.__externref_table_dealloc, wg = Wt.__wbindgen_free, Qc = Wt.__wbindgen_start, kg = Object.freeze(Object.defineProperty({
+  }, tg), ug = Wt.memory, dg = Wt.sum, pg = Wt.code_gen_from_yaml, gg = Wt.start, mg = Wt.__wbindgen_export_0, bg = Wt.__wbindgen_malloc, yg = Wt.__wbindgen_realloc, xg = Wt.__externref_table_dealloc, wg = Wt.__wbindgen_free, Qc = Wt.__wbindgen_start, kg = Object.freeze(Object.defineProperty({
     __proto__: null,
     __externref_table_dealloc: xg,
     __wbindgen_export_0: mg,
@@ -138,10 +138,10 @@ let __tla = (async () => {
     __wbindgen_malloc: bg,
     __wbindgen_realloc: yg,
     __wbindgen_start: Qc,
-    code_gen_from_yaml: dg,
+    code_gen_from_yaml: pg,
     memory: ug,
-    start: pg,
-    sum: gg
+    start: gg,
+    sum: dg
   }, Symbol.toStringTag, {
     value: "Module"
   }));
@@ -151,19 +151,19 @@ let __tla = (async () => {
     mesh:
         type: hyper_cube
         range: -1 m .. 1 m
-        subdivisions: 5
+        subdivisions: 7
         show_info: true
 
 equations:
     wave: diff(u, t, 2) - c^2 * laplacian * u = f
 
 time: 0 .. 5 s
-time_step: 0.1 s
+time_step: 0.015625 s
 
 parameters:
-    c: 
-      type: speed
-      value: 1
+  c: 
+    type: speed
+    value: 1
 
 solve:
   equations:
@@ -177,6 +177,8 @@ unknowns:
     boundary: g
     derivative:
       initial: v0
+      boundary: h
+
 
 functions:
     f: 0
@@ -184,6 +186,12 @@ functions:
     v0: 0
     g:
       - expr: sin(4 * pi * t)
+        t: 0 .. 0.5 s
+        x: -1 m
+        y: -0.33 .. 0.33 m
+      - expr: 0
+    h:
+      - expr: cos(4 * pi * t) * 4 * pi
         t: 0 .. 0.5 s
         x: -1 m
         y: -0.33 .. 0.33 m
