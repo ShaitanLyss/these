@@ -335,9 +335,9 @@ VectorTools::project({dof_handler}, constraints, QGauss<dim>({element}.degree + 
     factory.set_add_vector_output(&|_name, vector| {
         let mut block = BuildingBlock::new();
 
-        block
-            .output
-            .push(format!(r#"data_out.add_data_vector({vector}, "{vector}");"#));
+        block.output.push(format!(
+            r#"data_out.add_data_vector({vector}, "{vector}");"#
+        ));
 
         Ok(block)
     });

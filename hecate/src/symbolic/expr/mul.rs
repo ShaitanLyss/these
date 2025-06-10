@@ -1,5 +1,5 @@
-use indexmap::IndexMap;
 use super::*;
+use indexmap::IndexMap;
 
 #[derive(Clone)]
 pub struct Mul {

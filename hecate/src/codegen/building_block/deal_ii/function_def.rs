@@ -14,9 +14,8 @@ pub(super) fn function_def_to_deal_ii_code(function_def: &FunctionDef) -> String
                 let mut conditions: Vec<String> = Vec::new();
                 if let Some(condition) = t {
                     match condition {
-                        Condition::Value(value) => {
-                            conditions.push(format!("float_equals(get_time(), {})", value.seconds()))
-                        }
+                        Condition::Value(value) => conditions
+                            .push(format!("float_equals(get_time(), {})", value.seconds())),
                         Condition::Range(range) => conditions.push(format!(
                             "get_time() >= {} && get_time() <= {}",
                             range.start.seconds(),
@@ -27,9 +26,8 @@ pub(super) fn function_def_to_deal_ii_code(function_def: &FunctionDef) -> String
                 for (condition, accesser) in [(x, "point[0]"), (y, "point[1]"), (z, "point[2]")] {
                     if let Some(condition) = condition {
                         match condition {
-                            Condition::Value(value) => {
-                                conditions.push(format!("float_equals({accesser}, {})", value.meters()))
-                            }
+                            Condition::Value(value) => conditions
+                                .push(format!("float_equals({accesser}, {})", value.meters())),
                             Condition::Range(range) => conditions.push(format!(
                                 "{accesser} >= {} && {accesser} <= {}",
                                 range.start.meters(),

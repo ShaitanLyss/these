@@ -14,7 +14,6 @@ pub use std::error::Error as StdError;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-
 #[cfg(not(target_family = "wasm"))]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 

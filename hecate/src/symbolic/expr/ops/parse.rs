@@ -105,13 +105,15 @@ impl FromStr for Add {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Add::new_v2(
             split_root(s, &['+', '-'])
-                .map(|(prev, piece)| -> Result<Box<dyn Expr>, Box<ParseExprError>> {
-                    let mut op: Box<dyn Expr> = piece.parse().map_err(|e| Box::new(e))?;
-                    if let Some('-') = prev {
-                        op = -op;
-                    }
-                    Ok(op)
-                })
+                .map(
+                    |(prev, piece)| -> Result<Box<dyn Expr>, Box<ParseExprError>> {
+                        let mut op: Box<dyn Expr> = piece.parse().map_err(|e| Box::new(e))?;
+                        if let Some('-') = prev {
+                            op = -op;
+                        }
+                        Ok(op)
+                    },
+                )
                 .collect::<Result<_, _>>()?,
         ))
     }
@@ -129,13 +131,15 @@ impl FromStr for Mul {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Mul::new_move(
             split_root(s, &['*', '/'])
-                .map(|(prev, piece)| -> Result<Box<dyn Expr>, Box<ParseExprError>> {
-                    let mut op: Box<dyn Expr> = piece.parse().map_err(|e| Box::new(e))?;
-                    if let Some('/') = prev {
-                        op = op.ipow(-1);
-                    }
-                    Ok(op)
-                })
+                .map(
+                    |(prev, piece)| -> Result<Box<dyn Expr>, Box<ParseExprError>> {
+                        let mut op: Box<dyn Expr> = piece.parse().map_err(|e| Box::new(e))?;
+                        if let Some('/') = prev {
+                            op = op.ipow(-1);
+                        }
+                        Ok(op)
+                    },
+                )
                 .collect::<Result<_, _>>()?,
         ))
     }
@@ -189,14 +193,12 @@ pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunc
             let args: Result<Vec<Box<dyn Expr>>, ParseFunctionError> = args
                 .into_iter()
                 .map(|a| -> Result<Box<dyn Expr>, ParseFunctionError> {
-                    Ok(a.parse().map_err(|e| ParseFunctionError::InvalidArg(Box::new(e)))?)
+                    Ok(a.parse()
+                        .map_err(|e| ParseFunctionError::InvalidArg(Box::new(e)))?)
                 })
                 .collect();
 
-            Func::new_move_box(
-                name.to_string(),
-                args?,
-            )
+            Func::new_move_box(name.to_string(), args?)
         }
     })
 }

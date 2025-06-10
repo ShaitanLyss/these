@@ -14,10 +14,7 @@ impl Func {
     pub fn new<'a, T: IntoIterator<Item = &'a dyn Expr>>(name: &str, args: T) -> Self {
         Func {
             name: name.to_string(),
-            args: args
-                .into_iter()
-                .map(|expr| expr.clone_box())
-                .collect(),
+            args: args.into_iter().map(|expr| expr.clone_box()).collect(),
         }
     }
 
@@ -77,7 +74,10 @@ impl Expr for Func {
             .downcast_ref::<Vec<Box<dyn Expr>>>()
             .unwrap();
 
-        Box::new(Func { name, args: params.to_vec() })
+        Box::new(Func {
+            name,
+            args: params.to_vec(),
+        })
     }
 
     fn clone_box(&self) -> Box<dyn Expr> {
@@ -93,9 +93,16 @@ impl Expr for Func {
     }
 
     fn to_cpp(&self) -> String {
-
         if !self.name.contains("^") && self.name.len() > 1 {
-            format!("Kokkos::{}({})", self.name, self.args.iter().map(|x| x.to_cpp()).collect_vec().join(", "))
+            format!(
+                "Kokkos::{}({})",
+                self.name,
+                self.args
+                    .iter()
+                    .map(|x| x.to_cpp())
+                    .collect_vec()
+                    .join(", ")
+            )
         } else {
             self.name
                 .replace("^n-1", "_prev")
