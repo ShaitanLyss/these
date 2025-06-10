@@ -1,10 +1,10 @@
 [package]
 name = "hecate"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 
 [build-dependencies]
-bindgen = "0.71.1"
+bindgen = "0.72.0"
 cmake = "0.1.54"
 
 
