@@ -6,9 +6,9 @@ use std::{
 pub mod abc;
 pub mod expr;
 pub mod system;
+pub use expr::Equation;
 pub use expr::*;
 pub use system::System;
-pub use expr::Equation;
 
 pub enum KnownExpr<'a> {
     Add(&'a Add),

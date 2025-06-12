@@ -1,7 +1,5 @@
 use super::quantity::QUANTITY_RE;
-use schemars::
-    JsonSchema
-;
+use schemars::JsonSchema;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize, de::Error};

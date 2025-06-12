@@ -1,6 +1,6 @@
 use std::fmt;
 
-use schemars::{json_schema, JsonSchema};
+use schemars::{JsonSchema, json_schema};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
