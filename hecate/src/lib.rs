@@ -5,6 +5,7 @@
 pub mod symbolic;
 #[cfg(target_family = "wasm")]
 use codegen::input_schema::InputSchema;
+use schemars::schema_for;
 pub use symbolic::*;
 pub mod codegen;
 #[cfg(not(target_arch = "wasm32"))]
@@ -13,6 +14,8 @@ pub use codegen::BuildingBlock;
 pub use std::error::Error as StdError;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
+
+use crate::codegen::input_schema::InputSchema;
 
 #[cfg(not(target_family = "wasm"))]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
@@ -40,6 +43,10 @@ pub fn start() {
 pub fn format_err<E: StdError + Sync + Send + 'static>(err: E) -> String {
     let err = anyhow::Error::from(err);
     format!("Error: {err:?}")
+}
+
+pub fn input_schema_json_schema() -> String {
+    schema_for!(InputSchema).to_value().to_string()
 }
 
 #[cfg(target_family = "wasm")]

@@ -8,7 +8,7 @@ pub mod expr;
 pub mod system;
 pub use expr::*;
 pub use system::System;
-pub type Equation = expr::Eq;
+pub use expr::Equation;
 
 pub enum KnownExpr<'a> {
     Add(&'a Add),
@@ -18,7 +18,7 @@ pub enum KnownExpr<'a> {
     Symbol(&'a Symbol),
     Integral(&'a Integral),
     Rational(&'a Rational),
-    Eq(&'a Eq),
+    Eq(&'a Equation),
     Unknown,
 }
 
@@ -41,7 +41,7 @@ impl<'a> KnownExpr<'a> {
             KnownExpr::Symbol(expr.downcast_ref::<Symbol>().unwrap())
         } else if let Some(integral) = expr.downcast_ref::<Integral>() {
             KnownExpr::Integral(integral)
-        } else if let Some(eq) = expr.downcast_ref::<Eq>() {
+        } else if let Some(eq) = expr.downcast_ref::<Equation>() {
             KnownExpr::Eq(eq)
         } else if let Some(rational) = expr.downcast_ref::<Rational>() {
             KnownExpr::Rational(rational)

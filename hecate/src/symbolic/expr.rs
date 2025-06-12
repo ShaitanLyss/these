@@ -25,6 +25,7 @@ pub mod integral;
 pub use integral::*;
 
 pub mod symbol;
+use schemars::{JsonSchema, json_schema};
 pub use symbol::*;
 
 pub mod integer;
@@ -104,6 +105,34 @@ impl AsAny for Box<dyn Expr> {
 impl fmt::Debug for Box<dyn Arg> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.srepr())
+    }
+}
+impl JsonSchema for dyn Expr {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Expression".into()
+    }
+
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        concat!(module_path!(), "::Expression").into()
+    }
+
+    fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        json_schema!({
+            "title": "Expression",
+            "description": "A symbolic expression.",
+            "oneOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "number"
+                }
+            ]
+        })
+    }
+
+    fn inline_schema() -> bool {
+        true
     }
 }
 
@@ -272,7 +301,7 @@ pub trait Expr: Arg + Sync + Send {
         }
     }
 
-    fn as_eq(&self) -> Option<Eq> {
+    fn as_eq(&self) -> Option<Equation> {
         let res = self.clone_box();
         match KnownExpr::from_expr_box(&res) {
             KnownExpr::Eq(eq) => Some(eq.clone()),
@@ -558,7 +587,7 @@ mod tests {
     fn check_has() {
         let x = &Symbol::new("x");
         let y = &Symbol::new("y");
-        let expr = Eq::new(x, (y + x).get_ref());
+        let expr = Equation::new(x, (y + x).get_ref());
         assert!(expr.has(x));
         assert!(expr.has(y));
         assert!(expr.has((y + x).get_ref()));

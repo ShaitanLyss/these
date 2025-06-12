@@ -1,8 +1,10 @@
 use std::any::Any;
 
 use dyn_clone::DynClone;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use uom::si::f64::Length;
+
+use crate::codegen::input_schema::quantity::Length;
 
 use super::range::Range;
 
@@ -15,7 +17,7 @@ pub trait Mesh: std::fmt::Debug + DynClone + Any {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type")]
 pub enum MeshEnum {
     #[serde(rename = "hyper_cube")]
@@ -32,7 +34,7 @@ impl MeshEnum {
 
 dyn_clone::clone_trait_object!(Mesh);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(default)]
 pub struct HyperCubeMesh {
     pub range: Range<Length>,

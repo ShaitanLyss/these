@@ -1,7 +1,7 @@
 use std::fs;
 
 use anyhow::Result;
-use hecate::{self, BuildingBlock, codegen::input_schema::InputSchema};
+use hecate::{self, codegen::input_schema::InputSchema, input_schema_json_schema, BuildingBlock};
 
 use clap::{Parser, Subcommand};
 
@@ -26,6 +26,9 @@ enum Commands {
     ParseInputSchema {
         schema_file: String,
     },
+    /// Prints the json schema of the input schema
+    #[command(name = "json-schema")]
+    JsonSchema,
     Test,
     Matrixify,
 }
@@ -40,6 +43,7 @@ async fn main() -> Result<()> {
             let schema: InputSchema = serde_yaml::from_str(&s)?;
             println!("{schema:#?}");
         }
+        Commands::JsonSchema => println!("{}", input_schema_json_schema()),
         Commands::CodeGen { schema_file } => {
             let s = fs::read_to_string(&schema_file)?;
             let schema: InputSchema = serde_yaml::from_str(&s)?;
@@ -95,7 +99,7 @@ async fn main() -> Result<()> {
             println!("{}", Integral::new(f));
             println!("x == x : {}", Symbol::new_box("x") == Symbol::new_box("x"));
 
-            let eq = &Eq::into_new(&(Diff::new(u, vec![t, t]) - c.ipow(2) * laplacian * u), f);
+            let eq = &Equation::into_new(&(Diff::new(u, vec![t, t]) - c.ipow(2) * laplacian * u), f);
             println!("\nWave Equation:\n{}", eq as &dyn Expr);
 
             let system = System::new(["u"], ["f"], [eq]);

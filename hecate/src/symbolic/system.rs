@@ -9,7 +9,7 @@ pub struct System {
     pub unknowns: Vec<Func>,
     pub known_unknowns: Vec<Func>,
     pub knowns: Vec<Func>,
-    pub equations: Vec<Eq>,
+    pub equations: Vec<Equation>,
 }
 
 lazy_static! {
@@ -55,7 +55,7 @@ impl System {
         'a,
         T: IntoIterator<Item = &'a str>,
         U: IntoIterator<Item = &'a str>,
-        V: IntoIterator<Item = &'a Eq>,
+        V: IntoIterator<Item = &'a Equation>,
     >(
         unknowns: T,
         knowns: U,
@@ -84,7 +84,7 @@ impl System {
             })
             .collect();
 
-        equations.insert(0, Eq::new(&v, &*u.diff("t", 1)));
+        equations.insert(0, Equation::new(&v, &*u.diff("t", 1)));
         unknowns.push(v);
 
         System {
@@ -311,7 +311,7 @@ impl System {
         )
     }
 
-    pub fn with_equations(&self, equations: Vec<Eq>) -> Self {
+    pub fn with_equations(&self, equations: Vec<Equation>) -> Self {
         System {
             known_unknowns: self.known_unknowns.clone(),
             unknowns: self.unknowns.clone(),

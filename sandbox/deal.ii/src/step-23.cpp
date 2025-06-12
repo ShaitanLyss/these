@@ -131,12 +131,12 @@ public:
 };
 template <int dim>
 WaveEquation<dim>::WaveEquation()
-    : fe(1), dof_handler(triangulation), time_step(1. / 512), time(time_step),
+    : fe(1), dof_handler(triangulation), time_step(1. / 64), time(time_step),
       timestep_number(1), theta(0.5) {}
 
 template <int dim> void WaveEquation<dim>::setup_system() {
   GridGenerator::hyper_cube(triangulation, -1, 1);
-  triangulation.refine_global(10);
+  triangulation.refine_global(7);
 
   std::cout << "Number of active cells: " << triangulation.n_active_cells()
             << "\n";
@@ -219,15 +219,14 @@ template <int dim> void WaveEquation<dim>::run() {
               << std::endl;
     mass_matrix.vmult(system_rhs, old_solution_u);
 
-    mass_matrix.vmult(tmp,  old_solution_v);
+    mass_matrix.vmult(tmp, old_solution_v);
     system_rhs.add(time_step, tmp);
 
     laplace_matrix.vmult(tmp, old_solution_u);
-    system_rhs.add(-time_step * time_step * theta * (1 - theta), tmp);
+    system_rhs.add(-theta * (1 - theta) * time_step * time_step, tmp);
 
     RightHandSide<dim> rhs_function;
     rhs_function.set_time(time);
-
     VectorTools::create_right_hand_side(dof_handler, QGauss<dim>(fe.degree + 1),
                                         rhs_function, tmp);
     forcing_terms = tmp;
@@ -238,6 +237,7 @@ template <int dim> void WaveEquation<dim>::run() {
                                         rhs_function, tmp);
 
     forcing_terms.add((1 - theta) * time_step, tmp);
+
     system_rhs.add(theta * time_step, forcing_terms);
 
     {
@@ -247,8 +247,9 @@ template <int dim> void WaveEquation<dim>::run() {
       std::map<types::global_dof_index, double> boundary_values;
       VectorTools::interpolate_boundary_values(
           dof_handler, 0, boundary_values_u_function, boundary_values);
+
       matrix_u.copy_from(mass_matrix);
-      matrix_u.add(time_step * time_step * theta * theta, laplace_matrix);
+      matrix_u.add(theta * theta * time_step * time_step, laplace_matrix);
       MatrixTools::apply_boundary_values(boundary_values, matrix_u, solution_u,
                                          system_rhs);
     }

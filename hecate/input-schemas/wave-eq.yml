@@ -1,3 +1,8 @@
+# yaml-language-server: $schema=../hecate-json-schema.json
+generation:
+  matrix_free: false
+  mpi: true
+
 meshes:
     mesh:
         type: hyper_cube
@@ -8,19 +13,18 @@ meshes:
 equations:
     wave: diff(u, t, 2) - c^2 * laplacian * u = f
 
-time: 0 .. 5 s
-time_step: 0.015625 s
-
 parameters:
   c: 
     type: speed
-    value: 1
+    value: 1 m/s
 
 solve:
   equations:
     - wave
   mesh: mesh
   element: Q1
+  time: 0 .. 5 s
+  time_step: 0.015625 s
 
 unknowns:
   u:
@@ -29,7 +33,6 @@ unknowns:
     derivative:
       initial: v0
       boundary: h
-
 
 functions:
     f: 0

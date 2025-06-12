@@ -1,10 +1,7 @@
-use super::quantity::{QUANTITY_PATTERN, QUANTITY_RE};
-use schemars::{
-    JsonSchema,
-    schema::{
-        InstanceType, Schema, SchemaObject, SingleOrVec, StringValidation, SubschemaValidation,
-    },
-};
+use super::quantity::QUANTITY_RE;
+use schemars::
+    JsonSchema
+;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize, de::Error};
@@ -13,44 +10,44 @@ use thiserror::Error;
 
 use super::RawRepr;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, JsonSchema)]
 pub struct WithReference<T> {
     reference: bool,
     value: T,
     raw: String,
 }
 
-impl<T> JsonSchema for WithReference<T> {
-    fn schema_name() -> String {
-        String::from("ReferenceQuantity")
-    }
-
-    fn json_schema(_gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
-        let mut schema = SchemaObject::default();
-        //schema.instance_type = Some(SingleOrVec::Single(Box::new(InstanceType::String)));
-        schema.subschemas = Some(Box::new(SubschemaValidation {
-            one_of: Some(vec![
-                // Schema for string type
-                Schema::Object(SchemaObject {
-                    instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::String))),
-                    string: Some(Box::new(StringValidation {
-                        pattern: Some(QUANTITY_PATTERN.to_string()),
-                        ..Default::default()
-                    })),
-                    ..Default::default()
-                }),
-                // Schema for number type
-                Schema::Object(SchemaObject {
-                    instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Number))),
-                    ..Default::default()
-                }),
-            ]),
-            ..Default::default()
-        }));
-
-        Schema::Object(schema)
-    }
-}
+// impl<T> JsonSchema for WithReference<T> {
+//     fn schema_name() -> Cow<'static, str> {
+//         Cow::from("ReferenceQuantity")
+//     }
+//
+//     fn json_schema(_gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+//         let mut schema = Schema::default();
+//         //schema.instance_type = Some(SingleOrVec::Single(Box::new(InstanceType::String)));
+//         schema.subschemas = Some(Box::new(SubschemaValidation {
+//             one_of: Some(vec![
+//                 // Schema for string type
+//                 Schema::Object(SchemaObject {
+//                     instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::String))),
+//                     string: Some(Box::new(StringValidation {
+//                         pattern: Some(QUANTITY_PATTERN.to_string()),
+//                         ..Default::default()
+//                     })),
+//                     ..Default::default()
+//                 }),
+//                 // Schema for number type
+//                 Schema::Object(SchemaObject {
+//                     instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Number))),
+//                     ..Default::default()
+//                 }),
+//             ]),
+//             ..Default::default()
+//         }));
+//
+//         schema
+//     }
+// }
 impl<T> RawRepr for WithReference<T> {
     fn raw(&self) -> &str {
         &self.raw

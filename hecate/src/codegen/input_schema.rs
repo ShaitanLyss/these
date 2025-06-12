@@ -1,12 +1,16 @@
 use crate::StdError;
 use crate::codegen::building_block::{ApplyBoundaryConditionConfig, InitialConditionConfig};
+use crate::codegen::input_schema::quantity::QuantityTrait;
 use crate::ops::ParseExprError;
-use indexmap::IndexMap;
+use derive_more::{Deref, DerefMut, FromStr, IntoIterator};
+use indexmap::IndexMap as BaseIndexMap;
 use itertools::Itertools;
 use lazy_static::lazy_static;
+use schemars::JsonSchema;
 use serde::de::Visitor;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::str::FromStr;
 pub trait RawRepr {
     fn raw(&self) -> &str;
@@ -18,7 +22,6 @@ pub mod range;
 mod reference;
 mod unit;
 
-use dyn_clone::DynClone;
 use quantity::{Length, RANGE_PATTERN, Speed, Time};
 
 use mesh::MeshEnum;
@@ -31,12 +34,39 @@ use crate::{
     Equation, Expr, Func, Symbol, System, codegen::building_block::deal_ii_factory, symbol,
 };
 
-#[typetag::serde(tag = "type")]
-pub trait QuantityTrait: DynClone + Debug {
-    fn si_value(&self) -> f64;
+#[derive(Deref, DerefMut, Deserialize, Serialize, Clone, Debug, IntoIterator)]
+pub struct IndexMap<K, V>(#[into_iterator(owned, ref, ref_mut)] BaseIndexMap<K, V>)
+where
+    K: Eq + Hash;
+
+impl<K, V> IndexMap<K, V>
+where
+    K: Eq + Hash,
+{
+    pub fn new() -> Self {
+        IndexMap(BaseIndexMap::new())
+    }
+    pub fn with_capacity(capacity: usize) -> Self {
+        IndexMap(BaseIndexMap::with_capacity(capacity))
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl<K, V> JsonSchema for IndexMap<K, V>
+where
+    K: Eq + Hash + JsonSchema,
+    V: JsonSchema,
+{
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        format!("Map<{}, {}>", K::schema_name(), V::schema_name()).into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        HashMap::<K, V>::json_schema(generator)
+    }
+}
+
+/// # Quantity
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", content = "value")]
 pub enum QuantityEnum {
     #[serde(rename = "speed")]
@@ -51,10 +81,6 @@ impl QuantityEnum {
     }
 }
 
-dyn_clone::clone_trait_object!(QuantityTrait);
-
-use uom::si::f64 as si;
-
 use super::building_block::{
     Block, BlockRes, BuildingBlockFactory, EquationSetupConfig, ShapeMatrix, ShapeMatrixConfig,
     SolveUnknownConfig,
@@ -66,36 +92,82 @@ use super::{
     },
 };
 
-#[typetag::serde(name = "speed")]
-impl QuantityTrait for si::Velocity {
-    fn si_value(&self) -> f64 {
-        self.get::<uom::si::velocity::meter_per_second>()
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// # Finite Element
+/// The finite element to use for the mesh.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub enum FiniteElement {
     Q1,
     Q2,
     Q3,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// # Solve
+/// The equation(s) to solve and the mesh to use.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Solve {
+    /// # Equations
+    /// The equation(s) to solve
     pub equations: Vec<String>,
+
+    /// # Mesh
+    /// The mesh to use
     pub mesh: String,
+
     pub element: FiniteElement,
+
+    /// # Time
+    /// The time range to solve.
+    pub time: Range<Time>,
+
+    /// # Time Step
+    /// The time step to use.
+    pub time_step: Time,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// # Generation Configuration
+/// The configuration for the generation of the code.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, Default)]
+pub struct GenConfig {
+    /// # MPI
+    /// Whether to generate MPI code.
+    #[serde(default)]
+    pub mpi: bool,
+
+    /// # Matrix Free
+    /// Whether to generate matrix free code.
+    #[serde(default)]
+    pub matrix_free: bool,
+}
+
+/// # Hecate Input Schema
+/// The input schema for Hecate.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct InputSchema {
+    #[serde(rename = "generation")]
+    #[serde(default)]
+    pub gen_conf: GenConfig,
+
+    /// # Meshes
+    /// The available meshes.
     pub meshes: IndexMap<String, MeshEnum>,
+
+    /// # Equations
+    /// The available equations.
     pub equations: IndexMap<String, Equation>,
-    pub time: Range<Time>,
-    pub time_step: Time,
+
+    /// # Parameters
+    /// The available parameters.
     pub parameters: IndexMap<String, QuantityEnum>,
+
+    /// # Unknowns
+    /// The available unknowns.
     pub unknowns: IndexMap<String, Unknown>,
+
+    /// # Functions
+    /// The available functions.
+    /// They can either be simple function expression, or a list of function expression with conditions.
     pub functions: IndexMap<String, FunctionDef>,
+
     pub solve: Solve,
 }
 
@@ -105,7 +177,8 @@ impl InputSchema {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[serde(untagged)]
 pub enum Condition<T> {
     Value(T),
     Range(Range<T>),
@@ -153,19 +226,50 @@ where
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ConditionedFunction {
-    pub expr: Box<dyn Expr>,
+/// # Function Expression
+/// A function expression.
+/// Available variables are : t, x, y, z.
+/// Math functions such as cosinus or exponentials are available.
+/// They can be called through their cpp names like log for the logarithm.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, FromStr, DerefMut, Deref)]
+pub struct FunctionExpression(Box<dyn Expr>);
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ConditionedFunctionExpression {
+    pub expr: FunctionExpression,
+    /// # Time Condition
+    /// The time condition for which the function expression is valid.
+    /// It can be none, a value or a range.
     pub t: Option<Condition<Time>>,
+
+    /// # X Condition
+    /// The x condition for which the function expression is valid.
+    /// It can be none, a value or a range.
     pub x: Option<Condition<Length>>,
+
+    /// # Y Condition
+    /// The y condition for which the function expression is valid.
+    /// It can be none, a value or a range.
     pub y: Option<Condition<Length>>,
+
+    /// # Z Condition
+    /// The z condition for which the function expression is valid.
+    /// It can be none, a value or a range.
     pub z: Option<Condition<Length>>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+/// # Function Definition
+/// The definition of a function.
+/// This can be an expression or a conditioned function.
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[serde(untagged)]
 pub enum FunctionDef {
-    Expr(Box<dyn Expr>),
-    Conditioned(Vec<ConditionedFunction>),
+    Expr(FunctionExpression),
+    /// # Conditioned Function
+    /// A function defined as list of function expression with conditions (time range, space range, etc...).
+    /// The function expressions are checked in order. Therefore, in case of an overlap, the first one will be used.
+    /// If no function expressions without conditions are specified, a default value of 0 will be assumed.
+    Conditioned(Vec<ConditionedFunctionExpression>),
 }
 
 impl Serialize for Box<dyn Expr> {
@@ -220,14 +324,18 @@ impl<'de> Visitor<'de> for FunctionDefVisitor {
     where
         E: serde::de::Error,
     {
-        Ok(FunctionDef::Expr(crate::Integer::new_box(v as isize)))
+        Ok(FunctionDef::Expr(FunctionExpression(
+            crate::Integer::new_box(v as isize),
+        )))
     }
 
     fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        Ok(FunctionDef::Expr(crate::Integer::new_box(v as isize)))
+        Ok(FunctionDef::Expr(FunctionExpression(
+            crate::Integer::new_box(v as isize),
+        )))
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -236,7 +344,7 @@ impl<'de> Visitor<'de> for FunctionDefVisitor {
     {
         let mut res = Vec::new();
 
-        while let Some(item) = seq.next_element::<ConditionedFunction>()? {
+        while let Some(item) = seq.next_element::<ConditionedFunctionExpression>()? {
             res.push(item)
         }
 
@@ -253,7 +361,7 @@ impl<'de> Deserialize<'de> for FunctionDef {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum UnknownProperty {
     Constant(i64),
@@ -275,10 +383,20 @@ impl UnknownProperty {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// # Unknown
+/// Represents an unknown to be solved in the PDE.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Unknown {
+    /// # Initial Condition
+    /// The initial value of the unknown.
     pub initial: UnknownProperty,
+
+    /// # Boundary Condition
+    /// The boundary condition of the unknown.
     pub boundary: Option<UnknownProperty>,
+
+    /// # Derivative Conditions
+    /// The derivative's conditions of the unknown.
     pub derivative: Option<Box<Unknown>>,
 }
 
@@ -406,6 +524,8 @@ impl InputSchema {
             equations,
             mesh,
             element: _,
+            time: _,
+            time_step: _,
         } = &self.solve;
 
         self.meshes
@@ -444,6 +564,8 @@ impl InputSchema {
             equations,
             mesh,
             element,
+            time,
+            time_step,
         } = &self.solve;
 
         let mesh = &self.meshes[mesh];
@@ -719,9 +841,9 @@ impl InputSchema {
 
         // Setup context for filling the template
         let mut context: tera::Context = blocks.collect(dof_handler, sparsity_pattern)?.into();
-        context.insert("time_start", &self.time.start.seconds());
-        context.insert("time_end", &self.time.end.seconds());
-        context.insert("time_step", &self.time_step.seconds());
+        context.insert("time_start", &time.start.seconds());
+        context.insert("time_end", &time.end.seconds());
+        context.insert("time_step", &time_step.seconds());
 
         // Fill the template with the context
         Ok(TEMPLATES.render("cpp_source", &context)?)
@@ -931,17 +1053,13 @@ impl<'fa> BuildingBlockCollector<'fa> {
     }
 
     fn newline(&mut self) {
-        self.blocks.insert(
-            format!("newline#{}", self.blocks.len()),
-            self.factory.newline(),
-        );
+        let name = format!("newline#{}", self.blocks.len());
+        self.blocks.insert(name, self.factory.newline());
     }
 
     fn comment(&mut self, content: &str) {
-        self.blocks.insert(
-            format!("comment#{}", self.blocks.len()),
-            self.factory.comment(content),
-        );
+        let name = format!("comment#{}", self.blocks.len());
+        self.blocks.insert(name, self.factory.comment(content));
     }
 
     fn add_vector_output(&mut self, unknown: &str) -> Result<(), BuildingBlockError> {

@@ -1,6 +1,6 @@
 use crate::{
     Symbol,
-    codegen::input_schema::{Condition, ConditionedFunction, FunctionDef},
+    codegen::input_schema::{Condition, ConditionedFunctionExpression, FunctionDef},
 };
 
 pub(super) fn function_def_to_deal_ii_code(function_def: &FunctionDef) -> String {
@@ -10,7 +10,7 @@ pub(super) fn function_def_to_deal_ii_code(function_def: &FunctionDef) -> String
             let mut res: Vec<String> = Vec::with_capacity(conditionedFunctions.len());
 
             for i in 0..conditionedFunctions.len() {
-                let ConditionedFunction { expr, t, x, y, z } = &conditionedFunctions[i];
+                let ConditionedFunctionExpression { expr, t, x, y, z } = &conditionedFunctions[i];
                 let mut conditions: Vec<String> = Vec::new();
                 if let Some(condition) = t {
                     match condition {

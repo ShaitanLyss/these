@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 derive-alias = "0.1.1"
-schemars = "0.8.22"
+schemars = "1.0.0-alpha.21"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 tera = {version = "1.20.0", default-features = false}
@@ -27,9 +27,11 @@ serde_yaml = "0.9.34"
 typetag = "0.2.20"
 dyn-clone = "1.0.19"
 regex = "1.11.1"
-uom = { version = "0.37.0", default-features = false, features = ["std", "si", "serde", "f64"] }
 const_format = "0.2.34"
 num = "0.4.3"
+uom = { version = "0.37.0", default-features = false, features = ["std", "si", "serde", "f64"] }
+derive_more = { version = "2.0.1", features = ["deref", "deref_mut", "from_str", "into_iterator"] }
+ucfirst = "0.3.0"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 wasm-bindgen = "0.2.100"

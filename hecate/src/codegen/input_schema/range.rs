@@ -1,9 +1,5 @@
-use schemars::{
-    JsonSchema,
-    schema::{
-        InstanceType, Schema, SchemaObject, SingleOrVec, StringValidation, SubschemaValidation,
-    },
-};
+use schemars::{json_schema, JsonSchema};
+use std::borrow::Cow;
 use std::str::FromStr;
 
 use thiserror::Error;
@@ -27,37 +23,57 @@ impl<T> Serialize for Range<T> {
         serializer.serialize_str(&self.raw)
     }
 }
-impl<T> JsonSchema for Range<T> {
-    fn schema_name() -> String {
-        String::from("Range")
+impl<T: JsonSchema> JsonSchema for Range<T> {
+    fn schema_name() -> Cow<'static, str> {
+        format!("Range<{}>", T::schema_name()).into()
     }
 
-    fn json_schema(_gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
-        let mut schema = SchemaObject::default();
-        //schema.instance_type = Some(SingleOrVec::Single(Box::new(InstanceType::String)));
-        schema.subschemas = Some(Box::new(SubschemaValidation {
-            one_of: Some(vec![
-                // Schema for string type
-                Schema::Object(SchemaObject {
-                    instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::String))),
-                    string: Some(Box::new(StringValidation {
-                        pattern: Some(RANGE_PATTERN.to_string()),
-                        ..Default::default()
-                    })),
-                    ..Default::default()
-                }),
-                // Schema for number type
-                Schema::Object(SchemaObject {
-                    instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Number))),
-                    ..Default::default()
-                }),
-            ]),
-            ..Default::default()
-        }));
+    fn schema_id() -> Cow<'static, str> {
+        format!("{}::Range<{}>", module_path!(), T::schema_id()).into()
+    }
 
-        Schema::Object(schema)
+    fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        json_schema!({
+            "type": "string",
+            "pattern": RANGE_PATTERN
+        })
+    }
+
+    fn inline_schema() -> bool {
+        true
     }
 }
+// impl<T> JsonSchema for Range<T> {
+//     fn schema_name() -> String {
+//         String::from("Range")
+//     }
+//
+//     fn json_schema(_gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+//         let mut schema = SchemaObject::default();
+//         //schema.instance_type = Some(SingleOrVec::Single(Box::new(InstanceType::String)));
+//         schema.subschemas = Some(Box::new(SubschemaValidation {
+//             one_of: Some(vec![
+//                 // Schema for string type
+//                 Schema::Object(SchemaObject {
+//                     instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::String))),
+//                     string: Some(Box::new(StringValidation {
+//                         pattern: Some(RANGE_PATTERN.to_string()),
+//                         ..Default::default()
+//                     })),
+//                     ..Default::default()
+//                 }),
+//                 // Schema for number type
+//                 Schema::Object(SchemaObject {
+//                     instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Number))),
+//                     ..Default::default()
+//                 }),
+//             ]),
+//             ..Default::default()
+//         }));
+//
+//         Schema::Object(schema)
+//     }
+// }
 
 impl<'de, T> Deserialize<'de> for Range<T>
 where
@@ -144,13 +160,13 @@ mod tests {
 
     #[test]
     fn same_unit_when_only_one() {
-        let raw = "0..1m2";
+        let raw = "0..1dm2";
         let range: Range<Area> = raw.parse().expect("valid range should be parsed");
         assert_eq!(
             range,
             Range {
-                start: Area::new("0 m²").unwrap(),
-                end: Area::new("1 m^2").unwrap(),
+                start: "0dm2".parse().unwrap(),
+                end: "1dm2".parse().unwrap(),
                 raw: raw.to_string()
             }
         );
@@ -163,8 +179,8 @@ mod tests {
         assert_eq!(
             range,
             Range {
-                start: Area::new("10 km²").unwrap(),
-                end: Area::new("1 m^2").unwrap(),
+                start: "10km^+2".parse().unwrap(),
+                end: "1m2".parse().unwrap(),
                 raw: raw.to_string()
             }
         );
@@ -242,8 +258,8 @@ mod tests {
         assert_eq!(
             range,
             Range {
-                start: Length::new("-1 km").unwrap(),
-                end: Length::new("1 km").unwrap(),
+                start: "-1".parse().unwrap(),
+                end: "1".parse().unwrap(),
                 raw: raw.to_string()
             }
         )

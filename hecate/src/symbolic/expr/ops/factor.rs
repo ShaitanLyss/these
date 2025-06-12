@@ -14,7 +14,7 @@ where
     &'a F: Hash + cmp::Eq,
 {
     if let Some(eq) = expr.as_eq() {
-        return Eq::new_box(
+        return Equation::new_box(
             factor(eq.lhs.get_ref(), factors),
             factor(eq.rhs.get_ref(), factors),
         );

@@ -1,17 +1,18 @@
 use std::fmt;
 
+use schemars::{json_schema, JsonSchema};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::{ops::ParseExprError, *};
 
 #[derive(Clone)]
-pub struct Eq {
+pub struct Equation {
     pub lhs: Box<dyn Expr>,
     pub rhs: Box<dyn Expr>,
 }
 
-impl Serialize for Eq {
+impl Serialize for Equation {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -33,7 +34,7 @@ pub enum Error {
 }
 
 impl<'de> serde::de::Visitor<'de> for ExprDeserializeVisitor {
-    type Value = Eq;
+    type Value = Equation;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a properly written equation")
@@ -43,11 +44,11 @@ impl<'de> serde::de::Visitor<'de> for ExprDeserializeVisitor {
     where
         E: serde::de::Error,
     {
-        Eq::from_str(v).map_err(|e| E::custom(e.to_string()))
+        Equation::from_str(v).map_err(|e| E::custom(e.to_string()))
     }
 }
 
-impl<'de> Deserialize<'de> for Eq {
+impl<'de> Deserialize<'de> for Equation {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -56,38 +57,42 @@ impl<'de> Deserialize<'de> for Eq {
     }
 }
 
-impl fmt::Debug for Eq {
+impl fmt::Debug for Equation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}\n{}", self.str(), self.srepr())
         // write!(f, "{}", self.str())
     }
 }
 
-impl Eq {
-    pub fn into_new(lhs: &Box<dyn Expr>, rhs: &Box<dyn Expr>) -> Eq {
-        Eq {
+impl Equation {
+    pub fn into_new(lhs: &Box<dyn Expr>, rhs: &Box<dyn Expr>) -> Equation {
+        Equation {
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }
     }
 
-    pub fn new(lhs: &dyn Expr, rhs: &dyn Expr) -> Eq {
-        Eq {
+    pub fn new(lhs: &dyn Expr, rhs: &dyn Expr) -> Equation {
+        Equation {
             lhs: lhs.clone_box(),
             rhs: rhs.clone_box(),
         }
     }
 
     pub fn new_box(lhs: Box<dyn Expr>, rhs: Box<dyn Expr>) -> Box<dyn Expr> {
-        Box::new(Eq { lhs, rhs })
+        Box::new(Equation { lhs, rhs })
     }
 
-    pub fn from_str(s: &str) -> Result<Eq, Error> {
+    pub fn from_str(s: &str) -> Result<Equation, Error> {
         ops::parse_expr(s)?.as_eq().ok_or(Error::NotAnEquation)
     }
 }
 
-impl Expr for Eq {
+impl Expr for Equation {
+    fn name(&self) -> String {
+        "Eq".to_string()
+    }
+
     fn get_ref<'a>(&'a self) -> &'a dyn Expr {
         self as &dyn Expr
     }
@@ -97,7 +102,7 @@ impl Expr for Eq {
     }
 
     fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {
-        Box::new(Eq {
+        Box::new(Equation {
             lhs: args[0].clone().into(),
             rhs: args[1].clone().into(),
         })
@@ -112,33 +117,33 @@ impl Expr for Eq {
     }
 }
 
-impl std::ops::SubAssign<&dyn Expr> for Eq {
+impl std::ops::SubAssign<&dyn Expr> for Equation {
     fn sub_assign(&mut self, rhs: &dyn Expr) {
         self.lhs -= rhs;
         self.rhs -= rhs;
     }
 }
 
-impl std::ops::DivAssign<&dyn Expr> for Eq {
+impl std::ops::DivAssign<&dyn Expr> for Equation {
     fn div_assign(&mut self, rhs: &dyn Expr) {
         self.lhs /= rhs;
         self.rhs /= rhs;
     }
 }
 
-impl std::cmp::PartialEq for Eq {
+impl std::cmp::PartialEq for Equation {
     fn eq(&self, other: &Self) -> bool {
         &self.lhs == &other.lhs && &self.rhs == &other.rhs
     }
 }
 
-impl Eq {
+impl Equation {
     // - Expand all terms containing solved symbols
     // - Move them to the left
     // - Others to the right
     // - Factorize
     // - Divide by factor of seeked symbol
-    pub fn solve<'a, S: IntoIterator<Item = &'a dyn Expr>>(&self, exprs: S) -> Eq {
+    pub fn solve<'a, S: IntoIterator<Item = &'a dyn Expr>>(&self, exprs: S) -> Equation {
         let eq = (self.expand()).as_eq().expect("Should remain an eqation");
 
         let symbols: Vec<_> = exprs.into_iter().collect();
@@ -191,6 +196,25 @@ impl Eq {
     }
 }
 
+impl JsonSchema for Equation {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Equation".into()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        concat!(module_path!(), "::Equation").into()
+    }
+
+    fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        json_schema!({
+            "type": "string",
+            "pattern": "^[^=]+=[^=]+$"
+        })
+    }
+    fn inline_schema() -> bool {
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -200,7 +224,7 @@ mod tests {
     fn test_solve_solved() {
         let x = &Symbol::new("x");
 
-        let expr = Eq::new(x, &Integer::zero()).solve([x.get_ref()]);
+        let expr = Equation::new(x, &Integer::zero()).solve([x.get_ref()]);
         let expected = "Eq(Symbol(x), Integer(0))";
 
         assert_eq!(expr.srepr(), expected)
@@ -210,7 +234,7 @@ mod tests {
     fn test_solve_basic() {
         let x = &Symbol::new("x");
 
-        let expr = Eq::new(&Integer::zero(), x).solve([x.get_ref()]);
+        let expr = Equation::new(&Integer::zero(), x).solve([x.get_ref()]);
         let expected = "Eq(Symbol(x), Integer(0))";
 
         assert_eq!(expr.srepr(), expected)
@@ -222,8 +246,8 @@ mod tests {
         let y = &Symbol::new("y");
         let two = &Integer::new(2);
 
-        let expr = Eq::new(y, &*(two * x));
-        let expected = Eq::new(x, &*(y / two));
+        let expr = Equation::new(y, &*(two * x));
+        let expected = Equation::new(x, &*(y / two));
 
         assert_eq!(expr.solve([x.get_ref()]), expected)
     }
@@ -234,8 +258,8 @@ mod tests {
         let y = &Symbol::new("y");
         let z = &Symbol::new("z");
 
-        let expr = Eq::new(y, &*(z * x));
-        let expected = Eq::new(x, &*(y / z));
+        let expr = Equation::new(y, &*(z * x));
+        let expected = Equation::new(x, &*(y / z));
 
         assert_eq!(expr.solve([x.get_ref()]), expected)
     }
