@@ -15,6 +15,7 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
+    #[cfg(feature = "js")]
     Cpp,
     #[command(name = "gen")]
     CodeGen {
@@ -29,6 +30,7 @@ enum Commands {
     /// Prints the json schema of the input schema
     #[command(name = "json-schema")]
     JsonSchema,
+    #[cfg(feature = "js")]
     Test,
     Matrixify,
 }
@@ -69,9 +71,11 @@ async fn main() -> Result<()> {
             )?;
             println!("{bblock:#?}");
         }
+        #[cfg(feature ="js")]
         Commands::Cpp => unsafe {
             println!("{}", hecate::add(-12, 24));
         },
+        #[cfg(feature = "js")]
         Commands::Test => {
             hecate::js::test_js().await?;
         }

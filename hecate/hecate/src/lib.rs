@@ -2,6 +2,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
+pub use codegen::input_schema::IndexMap;
 pub mod symbolic;
 #[cfg(target_family = "wasm")]
 use codegen::input_schema::InputSchema;

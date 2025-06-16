@@ -156,6 +156,22 @@ impl Arg for String {
     }
 }
 
+impl<A: Arg + Clone, B: Arg + Clone> Arg for (A, B) {
+    fn srepr(&self) -> String {
+        format!("({}, {})", self.0.srepr(), self.1.srepr())
+    }
+
+    fn clone_arg(&self) -> Box<dyn Arg> {
+        Box::new((self.0.clone(), self.1.clone()))
+    }
+}
+
+impl std::fmt::Debug for &dyn Arg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.srepr())
+    }
+}
+
 impl Arg for Box<dyn Expr> {
     fn srepr(&self) -> String {
         (**self).srepr()
@@ -170,7 +186,17 @@ impl Arg for Box<dyn Expr> {
     }
 }
 
-impl Arg for Vec<Box<dyn Expr>> {
+impl Arg for usize {
+    fn srepr(&self) -> String {
+        self.to_string()
+    }
+
+    fn clone_arg(&self) -> Box<dyn Arg> {
+        Box::new(self.clone())
+    }
+}
+
+impl<A: Arg + Clone> Arg for Vec<A> {
     fn srepr(&self) -> String {
         let args = self
             .iter()
@@ -184,6 +210,21 @@ impl Arg for Vec<Box<dyn Expr>> {
         Box::new(self.clone())
     }
 }
+
+// impl Arg for Vec<Box<dyn Expr>> {
+//     fn srepr(&self) -> String {
+//         let args = self
+//             .iter()
+//             .map(|arg| arg.srepr())
+//             .collect::<Vec<String>>()
+//             .join(", ");
+//         format!("({})", args)
+//     }
+//
+//     fn clone_arg(&self) -> Box<dyn Arg> {
+//         Box::new(self.clone())
+//     }
+// }
 
 impl Clone for Box<dyn Arg> {
     fn clone(&self) -> Self {
@@ -254,6 +295,9 @@ impl FromIterator<Box<dyn Arg>> for Vec<Box<dyn Expr>> {
 // }
 
 pub trait Expr: Arg + Sync + Send {
+    fn as_expr(&self) -> Option<Box<dyn Expr>> {
+        Some(self.clone_box())
+    }
     fn args(&self) -> Vec<Box<dyn Arg>> {
         let mut res = Vec::new();
         self.for_each_arg(&mut |a| res.push(a.clone_arg()));
@@ -334,6 +378,16 @@ pub trait Expr: Arg + Sync + Send {
         )
     }
 
+    fn simplify_with_dimension(&self, dim: usize) -> Box<dyn Expr> {
+        let expr = self.simplify();
+        expr.from_args(
+            expr.args()
+                .iter()
+                .map(|a| a.map_expr(&|e| e.simplify_with_dimension(dim)))
+                .collect(),
+        )
+    }
+
     fn as_int(&self) -> Option<Integer> {
         let res = self.clone_box();
         match KnownExpr::from_expr_box(&res) {
@@ -361,15 +415,7 @@ pub trait Expr: Arg + Sync + Send {
     }
 
     fn diff(&self, var: &str, order: usize) -> Box<dyn Expr> {
-        Box::new(Diff {
-            f: self.clone_box(),
-            vars: vec![
-                Symbol {
-                    name: var.to_string(),
-                };
-                order
-            ],
-        })
+        Box::new(Diff::idiff(self.clone_box(), Symbol::new(var), order))
     }
 
     fn name(&self) -> String {

@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use regex::Regex;
+use regex::{Captures, Regex};
 use std::{num::ParseIntError, str::FromStr};
 
 use crate::expr::*;
@@ -26,6 +26,8 @@ pub enum ParseExprError {
     BadFunction(#[from] ParseFunctionError),
     #[error("invalid pow: {0}")]
     InvalidPow(#[from] ParsePowError),
+    #[error("invalid diffentiation: {0}")]
+    InvalidDiff(#[from] ParseDiffError),
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -234,6 +236,68 @@ impl FromStr for expr::Pow {
     }
 }
 
+lazy_static! {
+    static ref diff_re: Regex =
+        Regex::new(r"^[d∂]\^?([\d⁰¹²³⁴⁵⁶⁷⁸⁹]*)\(?(.+?)\)?\s*/\s*[d∂]\(?(\w+?)\)?\^?([\d⁰¹²³⁴⁵⁶⁷⁸]*)$")
+            .unwrap();
+}
+
+#[derive(Debug, Error, PartialEq)]
+pub enum ParseDiffError {
+    #[error("invalid diffentiation format: {0}, expected 'd^n(expr) / d(var)^n'")]
+    InvalidFormat(String),
+    #[error("invalid differentiated expression")]
+    BadExpr(#[from] Box<ParseExprError>),
+    #[error("invalid order format on numerator: {0}, {1}")]
+    InvalidNumOrderFormat(String, ParseIntError),
+    #[error("invalid order format on denominator: {0}, {1}")]
+    InvalidDenOrderFormat(String, ParseIntError),
+    #[error("order mismatch: numerator: {0}, denominator: {1}")]
+    OrderMismatch(usize, usize),
+}
+
+impl FromStr for Diff {
+    type Err = ParseDiffError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let captures = diff_re
+            .captures(s)
+            .ok_or_else(|| ParseDiffError::InvalidFormat(s.to_string()))?;
+        captures.try_into()
+    }
+}
+
+impl TryFrom<Captures<'_>> for Diff {
+    type Error = ParseDiffError;
+
+    fn try_from(value: Captures<'_>) -> Result<Self, Self::Error> {
+        let num_order = &value[1];
+        let den_order = &value[4];
+        let num_order: usize = if num_order == "" {
+            1
+        } else {
+            value[1]
+                .parse()
+                .map_err(|e| ParseDiffError::InvalidNumOrderFormat(value[1].to_string(), e))?
+        };
+        let den_order: usize = if den_order == "" {
+            1
+        } else {
+            value[4]
+                .parse()
+                .map_err(|e| ParseDiffError::InvalidDenOrderFormat(value[4].to_string(), e))?
+        };
+        let expr = parse_expr(&value[2]).map_err(|e| ParseDiffError::BadExpr(Box::new(e)))?;
+        let var = Symbol::new(&value[3]);
+
+        if num_order != den_order {
+            Err(ParseDiffError::OrderMismatch(num_order, den_order))?
+        }
+
+        Ok(Diff::new_move(expr, vec![var; num_order]))
+    }
+}
+
 pub fn parse_expr(s: &str) -> Result<Box<dyn Expr>, ParseExprError> {
     let s = s.trim();
     Ok(if s.split("=").collect::<Vec<_>>().len() >= 2 {
@@ -250,6 +314,8 @@ pub fn parse_expr(s: &str) -> Result<Box<dyn Expr>, ParseExprError> {
         && add_piece.len() != s.len()
     {
         Box::new(s.parse::<Add>()?)
+    } else if let Some(captured_diff) = diff_re.captures(s) {
+        Box::new(TryInto::<Diff>::try_into(captured_diff)?)
     } else if let Some((_, mul_piece)) = split_root(s, &['*', '/']).next()
         && mul_piece.len() != s.len()
     {
@@ -445,6 +511,25 @@ mod tests {
         let res = parse_expr("diff(u, t, 2) - c^2 * laplacian * u = f").unwrap();
         let [u, c, laplacian, f] = symbols!("u", "c", "laplacian", "f");
         let expected = Equation::new_box(u.diff("t", 2) - c.ipow(2) * laplacian * u, f.clone_box());
+        assert_eq!(res, expected)
+    }
+
+    #[test]
+    fn parse_2d_wave_eq() {
+        let res = parse_expr("d2u/dt^2 = c^2 * (d2u/dx2 + d2u/dy2) + source").unwrap();
+        let [u, c, source] = symbols!("u", "c", "source");
+        let expected = Equation::new_box(
+            u.diff("t", 2),
+            c * c * (u.diff("x", 2) + u.diff("y", 2)) + source.clone_box(),
+        );
+        assert_eq!(res, expected)
+    }
+
+    #[test]
+    fn parse_diff_complex() {
+        let res: Box<dyn Expr> = "d^2(2*x*t + t^2 - t)/dt^2".parse().unwrap();
+        let [x, t] = symbols!("x", "t");
+        let expected = (Integer::new_box(2) * x * t + t * t - t.clone_box()).diff("t", 2);
         assert_eq!(res, expected)
     }
 }

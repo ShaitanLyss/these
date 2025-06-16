@@ -1,4 +1,8 @@
+use std::collections::HashMap;
+
+use crate::symbol;
 use indexmap::IndexMap;
+use itertools::Itertools;
 
 use super::*;
 
@@ -32,6 +36,22 @@ impl Add {
 
     pub fn new_v2(ops: Vec<Box<dyn Expr>>) -> Self {
         Add { operands: ops }
+    }
+
+    pub fn term_coeffs(&self) -> IndexMap<Box<dyn Expr>, Rational> {
+        let mut term_coeffs: IndexMap<Box<dyn Expr>, Rational> = IndexMap::new();
+
+        for op in self.operands.iter() {
+            // let op = op.expand();
+            let (coeff, expr) = op.get_coeff();
+
+            let entry = term_coeffs.entry(expr).or_insert(Rational::zero());
+            *entry += coeff;
+        }
+        term_coeffs
+            .into_iter()
+            .filter(|(_, v)| !v.is_zero())
+            .collect()
     }
 }
 
@@ -136,6 +156,71 @@ impl Expr for Add {
         // self.from_args(self.args_map_exprs(&|expr| match expr.known_expr() {
         //     _ => expr.simplify(),
         // }))
+    }
+
+    fn simplify_with_dimension(&self, dim: usize) -> Box<dyn Expr> {
+        let expr = self;
+
+        match expr.known_expr() {
+            KnownExpr::Add(Add { operands }) => {
+                let operands = operands.iter().map(|op| op.simplify_with_dimension(dim)).collect_vec();
+                // let add = Add::new_v2(operands);
+                // let term_coeffs = add.term_coeffs();
+                let mut snd_ord_spatial_derivatives: HashMap<&Box<dyn Expr>, Vec<usize>> = HashMap::new();
+                let mut res_ops: Vec<Box<dyn Expr>> = Vec::with_capacity(operands.len());
+
+                for op in &operands {
+                    match op.known_expr() {
+                        KnownExpr::Diff(Diff { f, vars }) => {
+                            let entry = snd_ord_spatial_derivatives.entry(f).or_insert(vec![0; 3]);
+
+                            if vars.len() == 1 {
+                                let (var, order) = vars.iter().next().unwrap();
+                                if *order != 2 {
+                                    res_ops.push(op.clone());
+                                    continue;
+                                }
+                                match var.name.as_str() {
+                                    "x" => entry[0] += 1,
+                                    "y" => entry[1] += 1,
+                                    "z" => entry[2] += 1,
+                                    _ => res_ops.push(op.clone()),
+                                }
+                            } else {
+                                res_ops.push(op.clone());
+                            }
+                        }
+
+                        _ => res_ops.push(op.clone()),
+                    }
+                }
+
+                let laplacian = symbol!("laplacian");
+
+                for (f, mut counts) in snd_ord_spatial_derivatives {
+                    let min = *counts[0..dim].iter().min().unwrap();
+
+                    if min == 1 {
+                        res_ops.push(laplacian * f.get_ref());
+                    } else if min >= 1 {
+                        res_ops.push(laplacian * min * f.get_ref());
+                    }
+                    for k in 0..dim {
+                        counts[k] -= min;
+                    }
+                    for k in 0..dim {
+                        let count = counts[k];
+                        if count > 0 {
+                            todo!()
+
+                        }
+                    }
+                }
+
+                Add::new_box_v2(res_ops)
+            }
+            _ => expr.simplify_with_dimension(dim),
+        }
     }
 
     fn expand(&self) -> Box<dyn Expr> {
@@ -394,5 +479,21 @@ mod tests {
         let expected = "Add(Symbol(a), Mul(Integer(-1), Symbol(b), Symbol(c)))";
 
         assert_eq!(expr.srepr(), expected);
+    }
+
+    #[test]
+    fn test_simplify_dimension() {
+        let expr: Box<dyn Expr> = "d2u/dx2 + d2u/dy2".parse().unwrap();
+        let expected: Box<dyn Expr> = "laplacian * u".parse().unwrap();
+
+        assert_eq!(expr.simplify_with_dimension(2), expected);
+    }
+
+    #[test]
+    fn test_simplify_dim_advanced_add() {
+        let expr: Box<dyn Expr> = "c^2 * (∂^2u / ∂x^2 + ∂^2u / ∂y^2) + source".parse().unwrap();
+        let expected: Box<dyn Expr> = "c^2 * (laplacian * u) + source".parse().unwrap();
+
+        assert_eq!(expr.simplify_with_dimension(2), expected);
     }
 }

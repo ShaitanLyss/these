@@ -94,9 +94,10 @@ use super::{
 
 /// # Finite Element
 /// The finite element to use for the mesh.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, Default)]
 pub enum FiniteElement {
     Q1,
+    #[default]
     Q2,
     Q3,
 }
@@ -109,19 +110,34 @@ pub struct Solve {
     /// The equation(s) to solve
     pub equations: Vec<String>,
 
-    /// # Mesh
+    ///# Mesh
     /// The mesh to use
     pub mesh: String,
 
     pub element: FiniteElement,
 
+    /// # Dimension
+    /// The dimension of the problem
+    /// Possible values: 1, 2, 3
+    #[serde(default = "default_dimension")]
+    pub dimension: usize,
+
     /// # Time
     /// The time range to solve.
+    #[serde(default = "default_solving_range")]
     pub time: Range<Time>,
 
     /// # Time Step
     /// The time step to use.
     pub time_step: Time,
+}
+
+fn default_dimension() -> usize {
+    2
+}
+
+fn default_solving_range() -> Range<Time> {
+    "0 .. 5s".parse().unwrap()
 }
 
 /// # Generation Configuration
@@ -526,6 +542,7 @@ impl InputSchema {
             element: _,
             time: _,
             time_step: _,
+            dimension: _,
         } = &self.solve;
 
         self.meshes
@@ -566,11 +583,16 @@ impl InputSchema {
             element,
             time,
             time_step,
+            dimension,
         } = &self.solve;
 
         let mesh = &self.meshes[mesh];
 
-        let equations = equations.iter().map(|e| &self.equations[e]).collect_vec();
+        let equations = equations
+            .iter()
+            .map(|e| self.equations[e].simplify_with_dimension(*dimension))
+            .collect_vec();
+        dbg!(&equations);
 
         let unknowns = self.unknowns.keys().map(|s| &s[..]).collect_vec();
         let mut knowns = Vec::with_capacity(self.functions.len());
@@ -792,6 +814,7 @@ impl InputSchema {
                 let function = &unknown_config
                     .boundary
                     .as_ref()
+                    // .or_else(|| )
                     .ok_or_else(|| CodeGenError::MissingBoundary(unknown_cpp.to_string()))?
                     .to_function_name();
 
@@ -844,6 +867,7 @@ impl InputSchema {
         context.insert("time_start", &time.start.seconds());
         context.insert("time_end", &time.end.seconds());
         context.insert("time_step", &time_step.seconds());
+        context.insert("dimension", &dimension);
 
         // Fill the template with the context
         Ok(TEMPLATES.render("cpp_source", &context)?)

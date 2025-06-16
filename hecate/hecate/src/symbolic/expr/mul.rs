@@ -45,6 +45,9 @@ impl Expr for Mul {
                 {
                     format!("{name}.")
                 }
+                KnownExpr::Integer(Integer { value }) => value.to_string(),
+                KnownExpr::Symbol(Symbol { name }) => name.to_string(),
+                _ if self.operands.len() > 1 => format!("({})", op.str()),
                 _ => op.str(),
             })
             .collect();
@@ -452,7 +455,7 @@ mod tests {
         let laplacian = &Symbol::new_box("laplacian");
 
         let expr = &(Diff::new(u, vec![t, t]) - c.ipow(2) * laplacian * u);
-        let expected = "Add(Diff(Symbol(u), (Symbol(t), Symbol(t))), Mul(Integer(-1), Pow(Symbol(c), Integer(2)), Symbol(Δ), Symbol(u)))";
+        let expected = "Add(Diff(Symbol(u), ((Symbol(t), 2))), Mul(Integer(-1), Pow(Symbol(c), Integer(2)), Symbol(Δ), Symbol(u)))";
 
         assert_eq!(expr.srepr(), expected);
     }

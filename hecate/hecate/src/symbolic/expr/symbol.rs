@@ -1,5 +1,5 @@
 use super::*;
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Symbol {
     pub name: String,
 }

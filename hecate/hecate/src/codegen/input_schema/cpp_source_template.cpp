@@ -5,7 +5,7 @@
 #include <deal.II/numerics/data_out.h>
 {{ includes }}
 
-const int dim = 2;
+const int dim = {{ dimension }};
 using data_type = double;
 
 using namespace dealii;

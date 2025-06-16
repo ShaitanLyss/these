@@ -18,6 +18,7 @@ pub enum KnownExpr<'a> {
     Symbol(&'a Symbol),
     Integral(&'a Integral),
     Rational(&'a Rational),
+    Diff(&'a Diff),
     Eq(&'a Equation),
     Unknown,
 }

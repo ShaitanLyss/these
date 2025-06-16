@@ -60,7 +60,7 @@ impl Expr for Func {
     }
     fn for_each_arg(&self, f: &mut dyn FnMut(&dyn Arg) -> ()) {
         f(&self.name);
-        f(&self.args.iter().map(|s| s.clone_arg()).collect::<Vec<_>>());
+        f(&self.args);
     }
 
     fn from_args(&self, args: Vec<Box<dyn Arg>>) -> Box<dyn Expr> {

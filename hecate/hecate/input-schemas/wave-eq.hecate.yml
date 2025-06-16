@@ -24,6 +24,7 @@ solve:
   element: Q1
   time: 0 .. 5 s
   time_step: 0.015625 s
+  dimension: 2
 
 unknowns:
   u:
