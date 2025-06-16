@@ -220,7 +220,7 @@ impl Expr for Add {
                     }
                 }
 
-                Add::new_box_v2(res_ops)
+                Add::new_box_v2(res_ops).simplify()
             }
             _ => expr.simplify_with_dimension(dim),
         }
