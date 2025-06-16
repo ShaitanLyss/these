@@ -1,0 +1,48 @@
+[package]
+name = "hecate"
+version = "0.2.2"
+edition = "2024"
+
+[features]
+js = []
+cpp = []
+
+[target.'cfg(cpp)'.build-dependencies]
+bindgen = "0.72.0"
+cmake = "0.1.54"
+
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+derive-alias = "0.1.1"
+schemars = "1.0.0-alpha.21"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+tera = {version = "1.20.0", default-features = false}
+thiserror = { workspace = true}
+anyhow = { workspace = true}
+num-traits = "0.2.19"
+lazy_static = "1.5.0"
+itertools = "0.14.0"
+indexmap = { version = "2.9.0", features = ["serde"] }
+serde_yaml = "0.9.34"
+typetag = "0.2.20"
+dyn-clone = "1.0.19"
+regex = "1.11.1"
+const_format = "0.2.34"
+num = "0.4.3"
+uom = { version = "0.37.0", default-features = false, features = ["std", "si", "serde", "f64"] }
+derive_more = { version = "2.0.1", features = ["deref", "deref_mut", "from_str", "into_iterator"] }
+ucfirst = "0.3.0"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wasm-bindgen = "0.2.100"
+
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+clap = { version = "4.5.36", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+rquickjs = {  optional = true, git = "https://github.com/DelSkayn/rquickjs.git", version = "0.9.0", features = ["futures", "macro", "loader"] }
+llrt_modules = { optional = true, git = "https://github.com/awslabs/llrt.git", version = "0.5.1-beta", default-features = false, features = ["crypto", "console", "timers"] }

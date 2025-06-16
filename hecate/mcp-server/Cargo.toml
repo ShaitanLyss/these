@@ -1,0 +1,13 @@
+[package]
+name = "hecate-mcp-server"
+version = "0.1.0"
+edition = "2024"
+license-file.workspace = true
+
+[dependencies]
+hecate = { path = "../hecate" }
+rmcp = { version = "0.1.5", features = ["server", "transport-io"] }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tokio = "1.45.1"
+

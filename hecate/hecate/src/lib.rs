@@ -8,7 +8,7 @@ use codegen::input_schema::InputSchema;
 use schemars::schema_for;
 pub use symbolic::*;
 pub mod codegen;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "js", not(target_arch = "wasm32")))]
 pub mod js;
 pub use codegen::BuildingBlock;
 pub use std::error::Error as StdError;
@@ -17,7 +17,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::codegen::input_schema::InputSchema;
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "cpp", not(target_family = "wasm")))]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 // use derive_alias::derive_alias;
@@ -26,7 +26,7 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 //     derive_schema => #[derive(Serialize, Deserialize, PartialEq, PartialOrd)]
 // }
 
-#[cfg(target_family = "wasm")]
+#[cfg(all(target_family = "wasm", feature = "cpp"))]
 unsafe extern "C" {
     fn __wasm_call_ctors();
 }
