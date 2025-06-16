@@ -163,10 +163,14 @@ impl Expr for Add {
 
         match expr.known_expr() {
             KnownExpr::Add(Add { operands }) => {
-                let operands = operands.iter().map(|op| op.simplify_with_dimension(dim)).collect_vec();
+                let operands = operands
+                    .iter()
+                    .map(|op| op.simplify_with_dimension(dim))
+                    .collect_vec();
                 // let add = Add::new_v2(operands);
                 // let term_coeffs = add.term_coeffs();
-                let mut snd_ord_spatial_derivatives: HashMap<&Box<dyn Expr>, Vec<usize>> = HashMap::new();
+                let mut snd_ord_spatial_derivatives: HashMap<&Box<dyn Expr>, Vec<usize>> =
+                    HashMap::new();
                 let mut res_ops: Vec<Box<dyn Expr>> = Vec::with_capacity(operands.len());
 
                 for op in &operands {
@@ -212,7 +216,6 @@ impl Expr for Add {
                         let count = counts[k];
                         if count > 0 {
                             todo!()
-
                         }
                     }
                 }
@@ -491,7 +494,9 @@ mod tests {
 
     #[test]
     fn test_simplify_dim_advanced_add() {
-        let expr: Box<dyn Expr> = "c^2 * (∂^2u / ∂x^2 + ∂^2u / ∂y^2) + source".parse().unwrap();
+        let expr: Box<dyn Expr> = "c^2 * (∂^2u / ∂x^2 + ∂^2u / ∂y^2) + source"
+            .parse()
+            .unwrap();
         let expected: Box<dyn Expr> = "c^2 * (laplacian * u) + source".parse().unwrap();
 
         assert_eq!(expr.simplify_with_dimension(2), expected);

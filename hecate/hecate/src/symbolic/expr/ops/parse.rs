@@ -237,9 +237,10 @@ impl FromStr for expr::Pow {
 }
 
 lazy_static! {
-    static ref diff_re: Regex =
-        Regex::new(r"^[d∂]\^?([\d⁰¹²³⁴⁵⁶⁷⁸⁹]*)\(?(.+?)\)?\s*/\s*[d∂]\(?(\w+?)\)?\^?([\d⁰¹²³⁴⁵⁶⁷⁸]*)$")
-            .unwrap();
+    static ref diff_re: Regex = Regex::new(
+        r"^[d∂]\^?([\d⁰¹²³⁴⁵⁶⁷⁸⁹]*)\(?(.+?)\)?\s*/\s*[d∂]\(?(\w+?)\)?\^?([\d⁰¹²³⁴⁵⁶⁷⁸]*)$"
+    )
+    .unwrap();
 }
 
 #[derive(Debug, Error, PartialEq)]

@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
             )?;
             println!("{bblock:#?}");
         }
-        #[cfg(feature ="js")]
+        #[cfg(feature = "js")]
         Commands::Cpp => unsafe {
             println!("{}", hecate::add(-12, 24));
         },
