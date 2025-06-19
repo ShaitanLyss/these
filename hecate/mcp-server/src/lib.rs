@@ -60,6 +60,7 @@ impl HecateSimulator {
         #[tool(param)] name: String,
         #[tool(param)] schema: InputSchema,
     ) -> Result<CallToolResult, Error> {
+        schema.validate().map_err(|e| Error::invalid_params(e.to_string(), None))?;
         let job = job::ActiveModel {
             name: Set(name),
             schema: Set(serde_json::to_value(schema)
