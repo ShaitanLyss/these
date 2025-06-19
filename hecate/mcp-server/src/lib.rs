@@ -1,6 +1,6 @@
 use chrono::Utc;
-use entity::job::{self, JobStatus};
 use entity::job::Entity as Job;
+use entity::job::{self, JobStatus};
 use hecate::codegen::input_schema::InputSchema;
 use migration::{ExprTrait, Migrator, MigratorTrait};
 use rmcp::{
@@ -60,7 +60,9 @@ impl HecateSimulator {
         #[tool(param)] name: String,
         #[tool(param)] schema: InputSchema,
     ) -> Result<CallToolResult, Error> {
-        schema.validate().map_err(|e| Error::invalid_params(e.to_string(), None))?;
+        schema
+            .validate()
+            .map_err(|e| Error::invalid_params(e.to_string(), None))?;
         let job = job::ActiveModel {
             name: Set(name),
             schema: Set(serde_json::to_value(schema)

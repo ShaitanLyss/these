@@ -37,4 +37,3 @@ enum Job {
     Schema,
     CreatedAt,
 }
-
