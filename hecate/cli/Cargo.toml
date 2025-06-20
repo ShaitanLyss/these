@@ -1,0 +1,22 @@
+[package]
+name = "hecate-cli"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "hecate"
+path = "src/main.rs"
+
+[features]
+js = []
+cpp = []
+
+
+
+[dependencies]
+hecate = { path = "../hecate" }
+clap = { version = "4.5.36", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+serde_yaml = "0.9.34"
+anyhow = { workspace = true }
+tera = {version = "1.20.0", default-features = false}

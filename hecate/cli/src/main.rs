@@ -1,9 +1,14 @@
 use std::fs;
 
 use anyhow::Result;
-use hecate::{self, BuildingBlock, codegen::input_schema::InputSchema, input_schema_json_schema};
+use hecate::{
+    self, BuildingBlock,
+    codegen::input_schema::{InputSchema, TEMPLATES},
+    input_schema_json_schema,
+};
 
 use clap::{Parser, Subcommand};
+use tera::Tera;
 
 /// The world ain't ready for Hecate!
 #[derive(Parser)]
@@ -22,6 +27,8 @@ enum Commands {
         schema_file: String,
         #[arg(short, long)]
         mpi: Option<bool>,
+        #[arg(short, long)]
+        debug: Option<bool>,
     },
     #[command(name = "bblock")]
     BuildingBlock,
@@ -48,11 +55,14 @@ async fn main() -> Result<()> {
             println!("{schema:#?}");
         }
         Commands::JsonSchema => println!("{}", input_schema_json_schema()),
-        Commands::CodeGen { schema_file, mpi } => {
+        Commands::CodeGen { schema_file, mpi, debug } => {
             let s = fs::read_to_string(&schema_file)?;
             let mut schema: InputSchema = serde_yaml::from_str(&s)?;
             if let Some(mpi) = mpi {
                 schema.gen_conf.mpi = *mpi;
+            }
+            if let Some(debug) = debug {
+                schema.gen_conf.debug = *debug;
             }
             let sources = schema.generate_cpp_sources()?;
             // Create build directory
@@ -60,9 +70,12 @@ async fn main() -> Result<()> {
             // Write sources
             fs::write("./build/main.cpp", sources)?;
             // Write cmakelists.txt
+            let mut context = tera::Context::new();
+            context.insert("debug", &schema.gen_conf.debug);
             fs::write(
                 "./build/CMakeLists.txt",
-                include_str!("./codegen/input_schema/deal.ii/CMakeLists.txt"),
+                Tera::one_off(include_str!("../../hecate/src/codegen/input_schema/deal.ii/CMakeLists.txt"), &context, false)?,
+                // include_str!("./codegen/input_schema/deal.ii/CMakeLists.txt"),
             )?;
 
             println!("Sources generated in ./build!");

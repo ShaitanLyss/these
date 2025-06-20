@@ -1460,7 +1460,6 @@ version = "0.2.2"
 dependencies = [
  "anyhow",
  "bindgen",
- "clap",
  "cmake",
  "const_format",
  "derive-alias",
@@ -1480,11 +1479,22 @@ dependencies = [
  "serde_yaml",
  "tera",
  "thiserror",
- "tokio",
  "typetag",
  "ucfirst",
  "uom",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "hecate-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "hecate",
+ "serde_yaml",
+ "tera",
+ "tokio",
 ]
 
 [[package]]

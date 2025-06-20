@@ -137,7 +137,7 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
 
     factory.set_matrix(&|name,
                          MatrixConfig { sparsity_pattern },
-                         GenConfig { mpi, matrix_free }| {
+                         GenConfig { mpi, matrix_free, .. }| {
         let mut block = BuildingBlock::new();
         block.add_includes(&["deal.II/lac/sparse_matrix.h"]);
         if *mpi {

@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
   "hecate",
+  "cli",
   "mcp-server",
   "migration",
   "entity",

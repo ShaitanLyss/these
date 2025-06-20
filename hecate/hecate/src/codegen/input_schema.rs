@@ -153,6 +153,11 @@ pub struct GenConfig {
     /// Whether to generate matrix free code.
     #[serde(default)]
     pub matrix_free: bool,
+
+    /// # Debug
+    /// Whether to generate debug code.
+    #[serde(default)]
+    pub debug: bool,
 }
 
 /// # Hecate Input Schema
@@ -522,6 +527,16 @@ lazy_static! {
                 std::process::exit(1);
             }
         };
+        match tera.add_raw_template(
+            "cmakelists",
+            &include_str!("./input_schema/deal.ii/CMakeLists.txt"),
+        ) {
+            Ok(t) => t,
+            Err(e) => {
+                println!("Parsing error(s): {e}");
+                std::process::exit(1);
+            }
+        }
         tera
     };
 }

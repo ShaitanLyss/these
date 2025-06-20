@@ -17,7 +17,7 @@ using namespace Kokkos::numbers;
 
 bool float_equals(data_type a, data_type b) {
   const data_type base_epsilon = 1e-8;
-  const data_type epsilon = base_epsilon * std::max(1.0, std::max(std::abs(a), std::abs(b)));
+  const data_type epsilon = base_epsilon * Kokkos::max(1.0, Kokkos::max(Kokkos::abs(a), Kokkos::abs(b)));
   return Kokkos::fabs(b - a) < epsilon;
 }
 
