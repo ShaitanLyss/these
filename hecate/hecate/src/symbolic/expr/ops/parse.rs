@@ -147,7 +147,7 @@ impl FromStr for Mul {
     }
 }
 
-const func_pattern: &str = r"^(\w+)\(([^\)]*)\)$";
+const func_pattern: &str = r"^(\w+)\((.*?)\)$";
 
 lazy_static! {
     static ref func_re: Regex = Regex::new(func_pattern).unwrap();
@@ -169,6 +169,28 @@ pub enum ParseFunctionError {
 
 pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunctionError> {
     let args: Vec<_> = args.split(",").map(|arg| arg.trim()).collect();
+
+    if name.len() == 2 && name.starts_with("d") {
+        let var = name.chars().last().unwrap();
+
+        let mut order: usize = 1;
+
+        let mut f = args[0].to_string();
+
+        while let Some(captures) = Regex::new(&format!(r"^d{var}\((.*)\)$"))
+            .expect("valid regex")
+            .captures(&f)
+        {
+            f = captures[1].to_string();
+            order += 1;
+        }
+
+        return Ok(Box::new(Diff::new_move(
+            f.parse()
+                .map_err(|e| ParseFunctionError::InvalidFuncExpr(Box::new(e)))?,
+            &[(var, order)],
+        )));
+    }
 
     Ok(match name {
         "diff" => {
@@ -531,6 +553,14 @@ mod tests {
         let res: Box<dyn Expr> = "d^2(2*x*t + t^2 - t)/dt^2".parse().unwrap();
         let [x, t] = symbols!("x", "t");
         let expected = (Integer::new_box(2) * x * t + t * t - t.clone_box()).diff("t", 2);
+        assert_eq!(res, expected)
+    }
+
+    #[test]
+    fn parse_dx_syntax() {
+        let res = parse_expr("dx(dx(x))").unwrap();
+        let [x] = symbols!("x");
+        let expected = x.diff("x", 2);
         assert_eq!(res, expected)
     }
 }

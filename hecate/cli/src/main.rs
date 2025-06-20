@@ -55,7 +55,11 @@ async fn main() -> Result<()> {
             println!("{schema:#?}");
         }
         Commands::JsonSchema => println!("{}", input_schema_json_schema()),
-        Commands::CodeGen { schema_file, mpi, debug } => {
+        Commands::CodeGen {
+            schema_file,
+            mpi,
+            debug,
+        } => {
             let s = fs::read_to_string(&schema_file)?;
             let mut schema: InputSchema = serde_yaml::from_str(&s)?;
             if let Some(mpi) = mpi {
@@ -74,7 +78,11 @@ async fn main() -> Result<()> {
             context.insert("debug", &schema.gen_conf.debug);
             fs::write(
                 "./build/CMakeLists.txt",
-                Tera::one_off(include_str!("../../hecate/src/codegen/input_schema/deal.ii/CMakeLists.txt"), &context, false)?,
+                Tera::one_off(
+                    include_str!("../../hecate/src/codegen/input_schema/deal.ii/CMakeLists.txt"),
+                    &context,
+                    false,
+                )?,
                 // include_str!("./codegen/input_schema/deal.ii/CMakeLists.txt"),
             )?;
 
