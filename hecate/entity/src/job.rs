@@ -12,8 +12,9 @@
 //     }
 // }
 
+use schemars::JsonSchema;
 use sea_orm::entity::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize)]
 #[sea_orm(table_name = "job")]
@@ -24,6 +25,24 @@ pub struct Model {
     pub created_at: DateTimeUtc,
     pub schema: Json,
     pub status: JobStatus,
+    pub cluster_access_name: Option<String>,
+    pub scheduler: Option<JobScheduler>,
+    pub cluster: Option<String>,
+    pub queue: Option<String>,
+    pub num_nodes: Option<i32>,
+}
+
+#[derive(
+    Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, JsonSchema,
+)]
+#[sea_orm(
+    rs_type = "String",
+    db_type = "String(StringLen::None)",
+    rename_all = "camelCase"
+)]
+pub enum JobScheduler {
+    Oarsub,
+    IBMLsf,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize)]

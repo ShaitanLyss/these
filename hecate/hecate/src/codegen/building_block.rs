@@ -10,7 +10,10 @@ use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Equation, Expr, codegen::input_schema::FunctionDef};
+use crate::{
+    Equation, Expr,
+    codegen::input_schema::{FunctionDef, GenConfig},
+};
 
 use super::input_schema::{FiniteElement, mesh::Mesh};
 
@@ -94,11 +97,16 @@ impl BuildingBlock {
 }
 
 pub type BlockRes = Result<BuildingBlock, BuildingBlockError>;
-type BlockGetter<'a, T> = &'a dyn Fn(&str, &T) -> BlockRes;
+type BlockGetter<'a, T> = &'a dyn Fn(&str, &T, &GenConfig) -> BlockRes;
 macro_rules! block_getter {
     ($t:ty) => {
-        &'a dyn Fn(&str, &$t) -> BlockRes
+        &'a dyn Fn(&str, &$t, &GenConfig) -> BlockRes
     }
+}
+macro_rules! block_getter_no_context {
+    ($t:ty) => {
+        &'a dyn Fn(&str, &$t) -> BlockRes
+    };
 }
 
 macro_rules! block_accessers {
@@ -107,14 +115,14 @@ macro_rules! block_accessers {
             self.$name = Some(block);
         }
 
-        pub fn $name(&self, name: &str, config: &$config) -> BlockRes {
+        pub fn $name(&self, name: &str, config: &$config, gen_config: &GenConfig) -> BlockRes {
             if self.$name.is_none() {
                 Err(BuildingBlockError::BlockMissing(
                     stringify!($name).to_string(),
                     self.name.clone(),
                 ))?
             }
-            Ok(self.$name.unwrap()(name, config)?)
+            Ok(self.$name.unwrap()(name, config, gen_config)?)
         }
     };
 }
@@ -216,12 +224,12 @@ pub struct BuildingBlockFactory<'a> {
     vector: Option<block_getter!(VectorConfig)>,
     matrix: Option<block_getter!(MatrixConfig)>,
     dof_handler: Option<block_getter!(DofHandlerConfig)>,
-    element: Option<block_getter!(FiniteElement)>,
+    finite_element: Option<block_getter!(FiniteElement)>,
     sparsity_pattern: Option<block_getter!(SparsityPatternConfig)>,
     shape_matrix: Option<&'a dyn Fn(&str, BuildingBlock, &ShapeMatrixConfig) -> BlockRes>,
     solve_unknown: Option<block_getter!(SolveUnknownConfig)>,
     equation_setup: Option<block_getter!(EquationSetupConfig)>,
-    call: Option<block_getter!([&str])>,
+    call: Option<block_getter_no_context!([&str])>,
     parameter: Option<block_getter!(f64)>,
     function: Option<block_getter!(FunctionDef)>,
     vector_from_function: Option<block_getter!(VectorFromFnConfig)>,
@@ -238,7 +246,7 @@ impl<'a> BuildingBlockFactory<'a> {
             vector: None,
             matrix: None,
             dof_handler: None,
-            element: None,
+            finite_element: None,
             sparsity_pattern: None,
             shape_matrix: None,
             solve_unknown: None,
@@ -282,57 +290,34 @@ impl<'a> BuildingBlockFactory<'a> {
     );
     block_accessers!(add_vector_output, set_add_vector_output, str);
 
-    pub fn matrix(&self, name: &str, config: &MatrixConfig<'_>) -> BlockRes {
-        if self.matrix.is_none() {
-            Err(BuildingBlockError::BlockMissing(
-                "matrix".to_string(),
-                self.name.clone(),
-            ))?
-        }
-        Ok(self.matrix.unwrap()(name, config)?)
-    }
-
-    pub fn set_matrix(&mut self, block: block_getter!(MatrixConfig)) {
-        self.matrix = Some(block);
-    }
+    block_accessers!(matrix, set_matrix, MatrixConfig);
 
     pub fn add_mesh(&mut self, r#type: &str, block: BlockGetter<'a, dyn Mesh>) {
         self.mesh.insert(r#type.to_string(), block);
     }
 
-    pub fn mesh(&self, name: &str, config: &'a dyn Mesh) -> BlockRes {
+    pub fn mesh(&self, name: &str, config: &'a dyn Mesh, gen_config: &GenConfig) -> BlockRes {
         let r#type = config.typetag_name();
         Ok(self.mesh.get(r#type).ok_or(
             BuildingBlockError::BlockMissing(r#type.to_string(), self.name.clone()),
-        )?(name, config)?)
+        )?(name, config, gen_config)?)
     }
 
-    pub(crate) fn finite_element(
+    block_accessers!(finite_element, set_finite_element, FiniteElement);
+
+    pub fn shape_matrix<'b: 'a>(
         &self,
         name: &str,
-        element: &'a super::input_schema::FiniteElement,
+        config: &ShapeMatrixConfig<'b>,
+        gen_config: &GenConfig,
     ) -> BlockRes {
-        if self.element.is_none() {
-            Err(BuildingBlockError::BlockMissing(
-                "finite element".to_string(),
-                self.name.clone(),
-            ))?
-        }
-        Ok(self.element.unwrap()(name, element)?)
-    }
-
-    fn set_finite_element(&mut self, block: BlockGetter<'a, FiniteElement>) {
-        self.element = Some(block);
-    }
-
-    pub fn shape_matrix<'b: 'a>(&self, name: &str, config: &ShapeMatrixConfig<'b>) -> BlockRes {
         if self.shape_matrix.is_none() {
             Err(BuildingBlockError::BlockMissing(
                 "shape_matrix".to_string(),
                 self.name.clone(),
             ))?
         }
-        let matrix = self.matrix(name, &config.matrix_config)?;
+        let matrix = self.matrix(name, &config.matrix_config, gen_config)?;
         Ok(self.shape_matrix.unwrap()(name, matrix, config)?)
     }
 
@@ -343,33 +328,8 @@ impl<'a> BuildingBlockFactory<'a> {
         self.shape_matrix = Some(block);
     }
 
-    pub fn solve_unknown(&self, name: &str, config: &SolveUnknownConfig) -> BlockRes {
-        if self.solve_unknown.is_none() {
-            Err(BuildingBlockError::BlockMissing(
-                "solve_unknown".to_string(),
-                self.name.clone(),
-            ))?
-        }
-        Ok(self.solve_unknown.unwrap()(name, config)?)
-    }
-
-    pub fn set_solve_unknown(&mut self, block: block_getter!(SolveUnknownConfig)) {
-        self.solve_unknown = Some(block);
-    }
-
-    pub fn equation_setup(&self, name: &str, config: &EquationSetupConfig) -> BlockRes {
-        if self.equation_setup.is_none() {
-            Err(BuildingBlockError::BlockMissing(
-                "equation_setup".to_string(),
-                self.name.clone(),
-            ))?
-        }
-        Ok(self.equation_setup.unwrap()(name, config)?)
-    }
-
-    pub fn set_equation_setup(&mut self, block: block_getter!(EquationSetupConfig)) {
-        self.equation_setup = Some(block);
-    }
+    block_accessers!(solve_unknown, set_solve_unknown, SolveUnknownConfig);
+    block_accessers!(equation_setup, set_equation_setup, EquationSetupConfig);
 
     pub fn call(&self, name: &str, args: &[&str]) -> BlockRes {
         if self.call.is_none() {
@@ -381,7 +341,7 @@ impl<'a> BuildingBlockFactory<'a> {
         Ok(self.call.unwrap()(name, args)?)
     }
 
-    pub fn set_call(&mut self, block: block_getter!([&str])) {
+    pub fn set_call(&mut self, block: block_getter_no_context!([&str])) {
         self.call = Some(block);
     }
 
@@ -391,19 +351,7 @@ impl<'a> BuildingBlockFactory<'a> {
         block
     }
 
-    pub fn set_parameter(&mut self, block: block_getter!(f64)) {
-        self.parameter = Some(block);
-    }
-
-    pub fn parameter(&self, name: &str, value: f64) -> BlockRes {
-        if self.parameter.is_none() {
-            Err(BuildingBlockError::BlockMissing(
-                "parameter".to_string(),
-                self.name.clone(),
-            ))?
-        }
-        Ok(self.parameter.unwrap()(name, &value)?)
-    }
+    block_accessers!(parameter, set_parameter, f64);
 
     pub(crate) fn comment(&self, content: &str) -> BuildingBlock {
         let mut block = BuildingBlock::new();

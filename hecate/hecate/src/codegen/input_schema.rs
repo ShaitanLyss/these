@@ -568,8 +568,9 @@ impl InputSchema {
 
     pub fn generate_cpp_sources(&self) -> Result<String, CodeGenError> {
         self.validate()?;
+        let gen_conf = &self.gen_conf;
         let factory = deal_ii_factory();
-        let mut blocks = BuildingBlockCollector::new(&factory);
+        let mut blocks = BuildingBlockCollector::new(&factory, gen_conf);
         blocks.newline();
         blocks.comment("Parameters");
         for (name, value) in &self.parameters {
@@ -652,13 +653,16 @@ impl InputSchema {
 
         println!("/*\n{system}\n*/\n");
 
-        let mesh = blocks.insert("mesh", factory.mesh("mesh", mesh.get_ref())?)?;
+        let mesh = blocks.insert("mesh", factory.mesh("mesh", mesh.get_ref(), gen_conf)?)?;
 
-        let element = blocks.insert("element", factory.finite_element("element", element)?)?;
+        let element = blocks.insert(
+            "element",
+            factory.finite_element("element", element, gen_conf)?,
+        )?;
 
         let dof_handler = blocks.insert(
             "dof_handler",
-            factory.dof_handler("dof_handler", &DofHandlerConfig { mesh, element })?,
+            factory.dof_handler("dof_handler", &DofHandlerConfig { mesh, element }, gen_conf)?,
         )?;
 
         let vector_config = VectorConfig { dof_handler };
@@ -667,13 +671,20 @@ impl InputSchema {
 
         for vector in system.vectors() {
             let vector_cpp = vector.to_cpp();
-            blocks.insert(&vector_cpp, factory.vector(&vector_cpp, &vector_config)?)?;
+            blocks.insert(
+                &vector_cpp,
+                factory.vector(&vector_cpp, &vector_config, gen_conf)?,
+            )?;
             vectors.insert(vector, vector_cpp.clone());
         }
 
         let sparsity_pattern = blocks.insert(
             "sparsity_pattern",
-            factory.sparsity_pattern("sparsity_pattern", &SparsityPatternConfig { dof_handler })?,
+            factory.sparsity_pattern(
+                "sparsity_pattern",
+                &SparsityPatternConfig { dof_handler },
+                gen_conf,
+            )?,
         )?;
 
         let mut unknowns_matrices: HashMap<&dyn Expr, String> =
@@ -720,6 +731,7 @@ impl InputSchema {
                     element,
                     matrix_config: &matrix_config,
                 },
+                gen_conf,
             )?,
         )?;
         let _mass_mat = blocks.insert(
@@ -732,6 +744,7 @@ impl InputSchema {
                     element,
                     matrix_config: &matrix_config,
                 },
+                gen_conf,
             )?,
         )?;
 
@@ -868,6 +881,7 @@ impl InputSchema {
         context.insert("time_end", &time.end.seconds());
         context.insert("time_step", &time_step.seconds());
         context.insert("dimension", &dimension);
+        context.insert("mpi", &self.gen_conf.mpi);
 
         // Fill the template with the context
         Ok(TEMPLATES.render("cpp_source", &context)?)
@@ -879,6 +893,7 @@ struct BuildingBlockCollector<'fa> {
     blocks: IndexMap<String, BuildingBlock>,
     additional_names: HashSet<String>,
     factory: &'fa BuildingBlockFactory<'fa>,
+    gen_conf: &'fa GenConfig,
 }
 
 impl From<BuildingBlock> for tera::Context {
@@ -948,11 +963,12 @@ pub fn to_cpp_lines<Lines: IntoIterator<Item = String>>(prefix: &str, lines: Lin
 }
 
 impl<'fa> BuildingBlockCollector<'fa> {
-    fn new(factory: &'fa BuildingBlockFactory<'fa>) -> Self {
+    fn new(factory: &'fa BuildingBlockFactory<'fa>, gen_conf: &'fa GenConfig) -> Self {
         BuildingBlockCollector {
             blocks: IndexMap::new(),
             additional_names: HashSet::new(),
             factory,
+            gen_conf,
         }
     }
 
@@ -980,6 +996,7 @@ impl<'fa> BuildingBlockCollector<'fa> {
 
         let tmp_vector_config = VectorConfig { dof_handler };
         let tmp_matrix_config = MatrixConfig { sparsity_pattern };
+        let gen_conf = self.gen_conf;
         for (
             _,
             BuildingBlock {
@@ -993,14 +1010,14 @@ impl<'fa> BuildingBlockCollector<'fa> {
                 if additional_blocks.contains_key(vector) {
                     continue;
                 }
-                let block = self.factory.vector(vector, &tmp_vector_config)?;
+                let block = self.factory.vector(vector, &tmp_vector_config, gen_conf)?;
                 additional_blocks.insert(vector.to_string(), block);
             }
             for matrix in additional_matrixes {
                 if additional_blocks.contains_key(matrix) {
                     continue;
                 }
-                let block = self.factory.matrix(matrix, &tmp_matrix_config)?;
+                let block = self.factory.matrix(matrix, &tmp_matrix_config, gen_conf)?;
                 additional_blocks.insert(matrix.to_string(), block);
             }
         }
@@ -1046,23 +1063,30 @@ impl<'fa> BuildingBlockCollector<'fa> {
         name: &'na str,
         block: Block<'_>,
     ) -> Result<&'na str, BuildingBlockError> {
+        let gen_conf = self.gen_conf;
         self.insert(
             name,
             match block {
-                Block::Matrix(config) => self.factory.matrix(name, config)?,
-                Block::Vector(vector_config) => self.factory.vector(name, vector_config)?,
+                Block::Matrix(config) => self.factory.matrix(name, config, gen_conf)?,
+                Block::Vector(vector_config) => {
+                    self.factory.vector(name, vector_config, gen_conf)?
+                }
                 Block::SolveUnknown(solve_unknown_config) => {
-                    self.factory.solve_unknown(name, solve_unknown_config)?
+                    self.factory
+                        .solve_unknown(name, solve_unknown_config, gen_conf)?
                 }
                 Block::EquationSetup(equation_setup_config) => {
-                    self.factory.equation_setup(name, equation_setup_config)?
+                    self.factory
+                        .equation_setup(name, equation_setup_config, gen_conf)?
                 }
-                Block::Parameter(value) => self.factory.parameter(name, value)?,
-                Block::Function(function) => self.factory.function(name, function)?,
-                Block::AppyBoundaryCondition(config) => {
-                    self.factory.apply_boundary_condition(name, config)?
+                Block::Parameter(value) => self.factory.parameter(name, &value, gen_conf)?,
+                Block::Function(function) => self.factory.function(name, function, gen_conf)?,
+                Block::AppyBoundaryCondition(config) => self
+                    .factory
+                    .apply_boundary_condition(name, config, gen_conf)?,
+                Block::InitialCondition(config) => {
+                    self.factory.initial_condition(name, config, gen_conf)?
                 }
-                Block::InitialCondition(config) => self.factory.initial_condition(name, config)?,
             },
         )?;
         Ok(name)
@@ -1088,7 +1112,11 @@ impl<'fa> BuildingBlockCollector<'fa> {
 
     fn add_vector_output(&mut self, unknown: &str) -> Result<(), BuildingBlockError> {
         let name = format!("add_vector_output_{unknown}");
-        self.insert(&name, self.factory.add_vector_output(&name, unknown)?)?;
+        self.insert(
+            &name,
+            self.factory
+                .add_vector_output(&name, unknown, self.gen_conf)?,
+        )?;
         Ok(())
     }
 }

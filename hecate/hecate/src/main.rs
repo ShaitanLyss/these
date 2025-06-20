@@ -20,6 +20,8 @@ enum Commands {
     #[command(name = "gen")]
     CodeGen {
         schema_file: String,
+        #[arg(short, long)]
+        mpi: Option<bool>,
     },
     #[command(name = "bblock")]
     BuildingBlock,
@@ -46,9 +48,12 @@ async fn main() -> Result<()> {
             println!("{schema:#?}");
         }
         Commands::JsonSchema => println!("{}", input_schema_json_schema()),
-        Commands::CodeGen { schema_file } => {
+        Commands::CodeGen { schema_file, mpi } => {
             let s = fs::read_to_string(&schema_file)?;
-            let schema: InputSchema = serde_yaml::from_str(&s)?;
+            let mut schema: InputSchema = serde_yaml::from_str(&s)?;
+            if let Some(mpi) = mpi {
+                schema.gen_conf.mpi = *mpi;
+            }
             let sources = schema.generate_cpp_sources()?;
             // Create build directory
             fs::create_dir_all("./build")?;

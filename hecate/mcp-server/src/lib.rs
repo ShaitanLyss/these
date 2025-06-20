@@ -1,6 +1,6 @@
 use chrono::Utc;
-use entity::job::Entity as Job;
 use entity::job::{self, JobStatus};
+use entity::job::{Entity as Job, JobScheduler};
 use hecate::codegen::input_schema::InputSchema;
 use migration::{ExprTrait, Migrator, MigratorTrait};
 use rmcp::{
@@ -54,21 +54,40 @@ impl HecateSimulator {
         Ok(CallToolResult::success(vec![Content::text("Too hot")]))
     }
 
-    #[tool(description = "Submit a new simulation job")]
+    #[tool(
+        description = "Submit a new simulation job. If no number of num_nodes is provided and mpi is set to true in the schema, the number of nodes will be set to the number of available compute nodes."
+    )]
     async fn create_job(
         &self,
         #[tool(param)] name: String,
         #[tool(param)] schema: InputSchema,
+        #[tool(param)] cluster_access_name: Option<String>,
+        #[tool(param)] scheduler: Option<JobScheduler>,
+        #[tool(param)] cluster: Option<String>,
+        #[tool(param)] queue: Option<String>,
+        #[tool(param)] num_nodes: Option<i32>,
     ) -> Result<CallToolResult, Error> {
         schema
             .validate()
             .map_err(|e| Error::invalid_params(e.to_string(), None))?;
+        if cluster_access_name.is_some() && scheduler.is_none() {
+            return Err(Error::invalid_params(
+                "cluster execution requires a scheduler",
+                None,
+            ));
+        }
+
         let job = job::ActiveModel {
             name: Set(name),
             schema: Set(serde_json::to_value(schema)
                 .map_err(|e| Error::internal_error(e.to_string(), None))?),
             status: Set(JobStatus::Created),
             created_at: Set(Utc::now()),
+            cluster_access_name: Set(cluster_access_name),
+            scheduler: Set(scheduler),
+            cluster: Set(cluster),
+            queue: Set(queue),
+            num_nodes: Set(num_nodes),
             ..Default::default()
         };
         let job = job

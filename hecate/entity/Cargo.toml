@@ -8,3 +8,4 @@ publish = false
 sea-orm = { workspace = true }
 hecate = { path = "../hecate"}
 serde = { workspace = true }
+schemars = { workspace = true }

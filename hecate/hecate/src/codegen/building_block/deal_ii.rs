@@ -4,6 +4,7 @@ use itertools::Itertools;
 use regex::{Captures, Regex};
 
 use crate::codegen::building_block::{ApplyBoundaryConditionConfig, InitialConditionConfig};
+use crate::codegen::input_schema::GenConfig;
 use crate::symbolic::*;
 use crate::{
     Equation, Expr,
@@ -31,7 +32,7 @@ macro_rules! lines {
 pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
     let mut factory = BuildingBlockFactory::new("deal.II");
 
-    factory.add_mesh("hyper_cube", &|name, mesh| {
+    factory.add_mesh("hyper_cube", &|name, mesh, _| {
         let HyperCubeMesh {
             range,
             subdivisions,
@@ -63,11 +64,17 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
         Ok(hyper_cube)
     });
 
-    factory.set_vector(&|name, config| {
+    factory.set_vector(&|name, config, GenConfig { mpi, .. }| {
         let VectorConfig { dof_handler } = config;
         let mut vector = BuildingBlock::new();
         vector.add_includes(&["deal.II/lac/vector.h"]);
-        vector.add_data(&format!("Vector<data_type> {name}"));
+        if *mpi {
+            vector.add_includes(&["deal.II/lac/petsc_vector.h"]);
+        }
+        vector.add_data(&format!(
+            "{}Vector<data_type> {name}",
+            if *mpi { "PETScWrappers::MPI::" } else { "" }
+        ));
 
         vector
             .setup
@@ -76,7 +83,7 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
         Ok(vector)
     });
 
-    factory.set_dof_handler(&|name, DofHandlerConfig { mesh, element }| {
+    factory.set_dof_handler(&|name, DofHandlerConfig { mesh, element }, _| {
         let mut dof_handler = BuildingBlock::new();
         dof_handler.add_includes(&["deal.II/dofs/dof_handler.h"]);
         dof_handler.constructor.push(format!("{name}({mesh})"));
@@ -92,7 +99,7 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
         Ok(dof_handler)
     });
 
-    factory.set_finite_element(&|name, element| {
+    factory.set_finite_element(&|name, element, _| {
         let mut block = BuildingBlock::new();
         block.add_includes(&["deal.II/fe/fe_q.h"]);
         block.constructor.push(format!(
@@ -107,7 +114,7 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
         Ok(block)
     });
 
-    factory.set_sparsity_pattern(&|name, SparsityPatternConfig { dof_handler }| {
+    factory.set_sparsity_pattern(&|name, SparsityPatternConfig { dof_handler }, _| {
         let mut block = BuildingBlock::new();
         let dsp = format!("{dof_handler}_dsp");
 
@@ -128,11 +135,19 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
         Ok(block)
     });
 
-    factory.set_matrix(&|name, MatrixConfig { sparsity_pattern }| {
+    factory.set_matrix(&|name,
+                         MatrixConfig { sparsity_pattern },
+                         GenConfig { mpi, matrix_free }| {
         let mut block = BuildingBlock::new();
         block.add_includes(&["deal.II/lac/sparse_matrix.h"]);
+        if *mpi {
+            block.add_includes(&["deal.II/lac/petsc_sparse_matrix.h"]);
+        }
 
-        block.push_data(format!("SparseMatrix<data_type> {name}"));
+        block.push_data(format!(
+            "{}SparseMatrix<data_type> {name}",
+            if *mpi { "PETScWrappers::MPI::" } else { "" }
+        ));
         block.push_setup([format!("{name}.reinit({sparsity_pattern})")]);
 
         Ok(block)
@@ -156,7 +171,8 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
                                     rhs,
                                     unknown_vec,
                                     unknown_mat,
-                                }| {
+                                },
+                                _| {
         let mut block = BuildingBlock::new();
 
         block.add_includes(&[
@@ -190,7 +206,8 @@ void Sim::{name}() {{
                                      unknown,
                                      vectors,
                                      matrixes,
-                                 }| {
+                                 },
+                                 GenConfig { matrix_free, .. }| {
         let mut block = BuildingBlock::new();
 
         block
@@ -233,7 +250,7 @@ void Sim::{name}() {{
         Ok(block)
     });
 
-    factory.set_parameter(&|name, value| {
+    factory.set_parameter(&|name, value, _| {
         let mut block = BuildingBlock::new();
 
         block
@@ -243,7 +260,7 @@ void Sim::{name}() {{
         Ok(block)
     });
 
-    factory.set_function(&|name, function_def| {
+    factory.set_function(&|name, function_def, _| {
         let fn_name = name.split("_").last().expect("name is not empty");
         let class_name = format!("Fn_{fn_name}");
         let mut block = BuildingBlock::new();
@@ -284,7 +301,8 @@ public:
                                                matrix,
                                                solution,
                                                rhs,
-                                           }| {
+                                           },
+                                           _| {
         let mut block = BuildingBlock::new();
 
         block.add_includes(&[
@@ -316,7 +334,8 @@ public:
                                         function,
                                         element,
                                         target,
-                                    }| {
+                                    },
+                                    _| {
         let mut block = BuildingBlock::new();
 
         block.add_includes(&["deal.II/numerics/vector_tools_project.h"]);
@@ -332,7 +351,7 @@ VectorTools::project({dof_handler}, constraints, QGauss<dim>({element}.degree + 
         Ok(block)
     });
 
-    factory.set_add_vector_output(&|_name, vector| {
+    factory.set_add_vector_output(&|_name, vector, _| {
         let mut block = BuildingBlock::new();
 
         block.output.push(format!(

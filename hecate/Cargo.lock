@@ -1060,6 +1060,7 @@ name = "entity"
 version = "0.0.0"
 dependencies = [
  "hecate",
+ "schemars",
  "sea-orm",
  "serde",
 ]
@@ -1497,6 +1498,7 @@ dependencies = [
  "hecate",
  "migration",
  "rmcp",
+ "schemars",
  "sea-orm",
  "serde",
  "serde_json",
