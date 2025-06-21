@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.10.0)
 message(STATUS "CMake version: ${CMAKE_VERSION}")
 
-find_package(deal.II 9.6.0 REQUIRED)
+find_package(deal.II 9.6.0 REQUIRED
+  HINTS ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
+)
 deal_ii_initialize_cached_variables()
 
 set(CMAKE_BUILD_TYPE {% if debug %}Debug{% else %}Release{% endif %})
