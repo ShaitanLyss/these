@@ -2,8 +2,13 @@ use std::sync::{Arc, Mutex};
 
 use hecate::{IndexMap, codegen::input_schema::InputSchema};
 use rmcp::{
-    Error, ServiceExt,
-    model::{CallToolResult, Content, ServerCapabilities, ServerInfo},
+    Error, RoleServer, ServiceExt,
+    model::{
+        CallToolResult, Content, GetPromptRequestMethod, GetPromptRequestParam, GetPromptResult,
+        ListPromptsResult, PaginatedRequestParam, Prompt, PromptMessage, PromptMessageContent,
+        PromptMessageRole, ServerCapabilities, ServerInfo,
+    },
+    service::RequestContext,
     tool, transport,
 };
 use serde::Serialize;
@@ -44,12 +49,20 @@ impl HecateSimulator {
         Ok(CallToolResult::success(vec![Content::text("Too hot")]))
     }
 
+    // #[tool(description = "Validate an input schema (useful for simply checking a schema before submitting a job)")]
+    // fn validate_schema(schema: InputSchema) -> Result<CallToolResult, Error> {
+    //
+    // }
+
     #[tool(description = "Submit a new simulation job")]
     fn create_job(
         &self,
         #[tool(param)] job_id: String,
         #[tool(param)] schema: InputSchema,
     ) -> Result<CallToolResult, Error> {
+        schema
+            .validate()
+            .map_err(|e| Error::invalid_params(format!("invalid schema : {e}"), None))?;
         let mut sim_jobs = self.sim_jobs.lock().unwrap();
         if sim_jobs.contains_key(&job_id) {
             Err(Error::invalid_params(
@@ -88,9 +101,46 @@ impl rmcp::ServerHandler for HecateSimulator {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             instructions: Some("Hecate Simulation Service".into()),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            capabilities: ServerCapabilities::builder()
+                .enable_tools()
+                .enable_prompts()
+                .build(),
             ..Default::default()
         }
+    }
+
+    async fn get_prompt(
+        &self,
+        GetPromptRequestParam { name, arguments }: GetPromptRequestParam,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResult, Error> {
+        match name.as_str() {
+            "system_prompt" => Ok(GetPromptResult {
+                description: Some("This is the system prompt for Hecate.".into()),
+                messages: vec![PromptMessage {
+                    role: PromptMessageRole::User,
+                    content: PromptMessageContent::text(
+                        "The laplacian operator is available as laplacian. For instance laplacian u is laplacian * u. Derivatives are written with either diff(f, t, 2) or d^2(f)/dt^2. You can also use rounded d which might be better when relevant.",
+                    ),
+                }],
+            }),
+            _ => Err(Error::invalid_params("prompt not found", None)),
+        }
+    }
+
+    async fn list_prompts(
+        &self,
+        request: Option<PaginatedRequestParam>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, Error> {
+        Ok(ListPromptsResult {
+            next_cursor: None,
+            prompts: vec![Prompt::new(
+                "system_prompt",
+                Some("This is the system prompt for Hecate."),
+                None,
+            )],
+        })
     }
 }
 
