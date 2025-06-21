@@ -160,7 +160,7 @@ pub trait QuantityTrait: Clone + Debug + FromStr {
     // }
     // fn default_unit(&self) -> Cow<'static, str>;
     fn description() -> Cow<'static, str> {
-        format!("A {}.", Self::type_id()).into()
+        format!("A {}.", Self::name().to_lowercase()).into()
     }
 
     fn name() -> Cow<'static, str> {
@@ -221,7 +221,7 @@ impl<T: QuantityTrait> JsonSchema for Quantity<T> {
 
     fn json_schema(generator: &mut schemars::SchemaGenerator) -> Schema {
         json_schema!({
-            "title": ucfirst(&T::type_id()),
+            "title": ucfirst(&T::name()),
             "description": T::description(),
             "oneOf": [
                 {
