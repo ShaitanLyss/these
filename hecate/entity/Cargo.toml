@@ -1,0 +1,11 @@
+[package]
+name = "entity"
+edition = "2024"
+publish = false
+
+
+[dependencies]
+sea-orm = { workspace = true }
+hecate = { path = "../hecate"}
+serde = { workspace = true }
+schemars = { workspace = true }

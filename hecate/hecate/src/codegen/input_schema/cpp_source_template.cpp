@@ -3,7 +3,10 @@
 #include <fstream>
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/numerics/data_out.h>
-{{ includes }}
+{{ includes }}{% if mpi %}
+#include <mpi.h>
+#include <deal.II/base/conditional_ostream.h>
+#include <deal.II/base/mpi.h>{% endif %}
 
 const int dim = {{ dimension }};
 using data_type = double;
@@ -12,9 +15,9 @@ using namespace dealii;
 using namespace Kokkos::numbers;
 
 
-constexpr bool float_equals(data_type a, data_type b) {
+bool float_equals(data_type a, data_type b) {
   const data_type base_epsilon = 1e-8;
-  const data_type epsilon = base_epsilon * std::max(1.0, std::max(std::abs(a), std::abs(b)));
+  const data_type epsilon = base_epsilon * Kokkos::max(1.0, Kokkos::max(Kokkos::abs(a), Kokkos::abs(b)));
   return Kokkos::fabs(b - a) < epsilon;
 }
 
@@ -79,12 +82,15 @@ void Sim::output_results() {
   data_out.write_vtu(output);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) { {% if mpi %}
+  MPI_Init(&argc, &argv);{% endif %}
   Kokkos::initialize(argc, argv);
 
   Sim sim;
   sim.run();
 
-  Kokkos::finalize();
+  Kokkos::finalize();{% if mpi %}
+  MPI_Finalize();{% endif %}
+
   return 0;
 }

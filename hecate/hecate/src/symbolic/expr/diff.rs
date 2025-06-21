@@ -8,6 +8,10 @@ pub struct Diff {
     pub vars: IndexMap<Symbol, usize>,
 }
 
+pub trait IntoVarOrder {
+    fn into_var_order(self) -> (Symbol, usize);
+}
+
 impl Diff {
     pub fn new<'a, It: IntoIterator<Item = &'a Box<dyn Expr>>>(
         f: &Box<dyn Expr>,
@@ -29,19 +33,50 @@ impl Diff {
         Self { f, vars }
     }
 
-    pub fn new_move<I>(f: Box<dyn Expr>, vars: I) -> Diff
+    pub fn new_move<I, T>(f: Box<dyn Expr>, vars: I) -> Diff
     where
-        I: IntoIterator<Item = Symbol>,
+        I: IntoIterator<Item = T>,
+        T: IntoVarOrder,
     {
         let mut vars_orders = IndexMap::new();
         for var in vars {
+            let (var, order) = var.into_var_order();
             let entry = vars_orders.entry(var).or_insert(0);
-            *entry += 1;
+            *entry += order;
         }
         Diff {
             f,
             vars: vars_orders,
         }
+    }
+}
+
+impl IntoVarOrder for (Symbol, usize) {
+    fn into_var_order(self) -> (Symbol, usize) {
+        self
+    }
+}
+
+impl IntoVarOrder for Symbol {
+    fn into_var_order(self) -> (Symbol, usize) {
+        (self, 1)
+    }
+}
+
+impl IntoVarOrder for &str {
+    fn into_var_order(self) -> (Symbol, usize) {
+        (Symbol::new(self), 1)
+    }
+}
+impl IntoVarOrder for char {
+    fn into_var_order(self) -> (Symbol, usize) {
+        (Symbol::new(&self.to_string()), 1)
+    }
+}
+
+impl<T: ToString> IntoVarOrder for &(T, usize) {
+    fn into_var_order(self) -> (Symbol, usize) {
+        (Symbol::new(&self.0.to_string()), self.1)
     }
 }
 
@@ -93,14 +128,14 @@ impl Expr for Diff {
             .iter()
             .map(|(var, order)| {
                 if *order == 1 {
-                    var.str()
+                    format!("∂{var}")
                 } else {
-                    format!("{}^{}", var.str(), order)
+                    format!("∂{}^{}", var.str(), order)
                 }
             })
             .join(".");
 
-        format!("∂{}{f} / ∂{denom}", exponent,)
+        format!("∂{}{f} / {denom}", exponent,)
     }
 }
 

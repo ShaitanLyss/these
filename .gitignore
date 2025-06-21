@@ -5,11 +5,15 @@
 jupyter/**/*.parquet
 MonoCoderRepo
 
+# Environment variables
+.env
 
 # JS
 node_modules
 
 
+# Databases
+*.db
 
 
 

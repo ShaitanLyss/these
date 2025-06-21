@@ -1,0 +1,41 @@
+solve:
+  mesh: domain
+  time: "0 s .. 10 s"
+  element: Q1
+  dimension: 1
+  equations:
+    - heat_eq
+  time_step: "0.01 s"
+meshes:
+  domain:
+    type: hyper_cube
+    range: "0 m .. 1 m"
+    show_info: false
+    subdivisions: 50
+unknowns:
+  T:
+    initial: "293"
+    boundary: T_hot_cold_bc
+equations:
+  heat_eq: "dt(T) = thermal_diffusivity * laplacian(T)"
+functions:
+  T_hot_cold_bc:
+    - x: "0 m"
+      expr: T_hot
+    - x: "1 m"
+      expr: T_cold
+generation:
+  mpi: false
+  debug: false
+  matrix_free: false
+parameters:
+  T_hot:
+    type: temperature
+    value: "373 K"
+  T_cold:
+    type: temperature
+    value: "273 K"
+  thermal_diffusivity:
+    type: diffusion_coefficient
+    value: "1e-5 m²/s"
+

@@ -1,17 +1,22 @@
 use crate::StdError;
 use crate::codegen::building_block::{ApplyBoundaryConditionConfig, InitialConditionConfig};
-use crate::codegen::input_schema::quantity::QuantityTrait;
+use crate::codegen::input_schema::quantity::{NO_REF_QUANTITY_PATTERN, QuantityEnum};
+use crate::codegen::input_schema::unit::format_unit;
 use crate::ops::ParseExprError;
 use derive_more::{Deref, DerefMut, FromStr, IntoIterator};
 use indexmap::IndexMap as BaseIndexMap;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use schemars::JsonSchema;
+use regex::Regex;
+use schemars::{JsonSchema, json_schema};
+use serde::de::Error;
 use serde::de::Visitor;
+use serde::ser::SerializeMap;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::str::FromStr;
+use std::sync::LazyLock;
 pub trait RawRepr {
     fn raw(&self) -> &str;
 }
@@ -22,7 +27,7 @@ pub mod range;
 mod reference;
 mod unit;
 
-use quantity::{Length, RANGE_PATTERN, Speed, Time};
+use quantity::{Length, RANGE_PATTERN, Time};
 
 use mesh::MeshEnum;
 use range::Range;
@@ -62,22 +67,6 @@ where
 
     fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
         HashMap::<K, V>::json_schema(generator)
-    }
-}
-
-/// # Quantity
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type", content = "value")]
-pub enum QuantityEnum {
-    #[serde(rename = "speed")]
-    Speed(Speed),
-}
-
-impl QuantityEnum {
-    pub fn si_value(&self) -> f64 {
-        match self {
-            QuantityEnum::Speed(v) => v.si_value(),
-        }
     }
 }
 
@@ -153,6 +142,172 @@ pub struct GenConfig {
     /// Whether to generate matrix free code.
     #[serde(default)]
     pub matrix_free: bool,
+
+    /// # Debug
+    /// Whether to generate debug code.
+    #[serde(default)]
+    pub debug: bool,
+}
+
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuantityKind {
+    Length,
+    Time,
+    Speed,
+    DiffusionCoefficient,
+    Custom,
+}
+
+impl QuantityKind {
+    fn default_unit(&self) -> Option<&'static str> {
+        match self {
+            QuantityKind::Length => Some("m"),
+            QuantityKind::Time => Some("s"),
+            QuantityKind::Speed => Some("m/s"),
+            QuantityKind::DiffusionCoefficient => Some("m²/s"),
+            QuantityKind::Custom => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Parameter {
+    r#type: QuantityKind,
+    value: f64,
+    unit: Option<String>,
+}
+
+impl Parameter {
+    pub fn value_string(&self) -> String {
+        if let Some(unit) = &self.unit {
+            format!("{} {unit}", self.value)
+        } else {
+            self.value.to_string()
+        }
+    }
+
+    // pub fn si_value(&self) -> f64 {
+    //     let s = self.value_string();
+    //     match self.r#type {
+    //         QuantityKind::Length => s.parse::<Length>(),
+    //         QuantityKind::Time => self.value,
+    //         QuantityKind::Speed => self.value,
+    //         QuantityKind::DiffusionCoefficient => self.value,
+    //         QuantityKind::Custom => self.value,
+    //
+    //     }
+    //
+    //
+    // }
+}
+
+impl Serialize for Parameter {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("type", &self.r#type)?;
+        map.serialize_entry(
+            "value",
+            &(if let Some(unit) = &self.unit {
+                format!("{} {unit}", self.value)
+            } else {
+                self.value.to_string()
+            }),
+        )?;
+        map.end()
+    }
+}
+
+impl JsonSchema for Parameter {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Parameter".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        json_schema!({
+            "type": "object",
+            "title": "Parameter",
+            "required": ["type", "value"],
+            "description": "A parameter is a quantity with a value and a unit. If no unit is specified, the default unit will be used.",
+            "properties": {
+                "type": QuantityKind::json_schema(generator),
+                "value": {
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "pattern": NO_REF_QUANTITY_PATTERN,
+                        },
+                        {
+                            "type": "number"
+                        }
+                    ]
+                }
+            }
+        })
+    }
+}
+
+struct DeserializeParameterVisitor;
+
+static NO_REF_QUANTITY_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(NO_REF_QUANTITY_PATTERN).unwrap());
+
+impl<'de> Visitor<'de> for DeserializeParameterVisitor {
+    type Value = Parameter;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a parameter")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        let mut r#type: Option<QuantityKind> = None;
+        let mut value: Option<&str> = None;
+        while let Some(key) = map.next_key()? {
+            match key {
+                "type" => r#type = Some(map.next_value()?),
+                "value" => value = Some(map.next_value()?),
+                field => Err(A::Error::unknown_field(field, &["type", "value"]))?,
+            }
+        }
+        let r#type = r#type.ok_or_else(|| A::Error::missing_field("type"))?;
+        let value = value.ok_or_else(|| A::Error::missing_field("value"))?;
+        let captures = NO_REF_QUANTITY_RE
+            .captures(value)
+            .ok_or_else(|| A::Error::invalid_value(serde::de::Unexpected::Str(value), &self))?;
+        let value = captures[1].trim().parse().map_err(|_| {
+            A::Error::invalid_value(
+                serde::de::Unexpected::Str(&captures[1]),
+                &"a string that can be parsed as a float",
+            )
+        })?;
+        let unit = captures[2].trim();
+        let unit = if unit.is_empty() {
+            r#type.default_unit().map(|u| u.to_owned())
+        } else {
+            Some(format_unit(&captures[2]).map_err(|e| A::Error::custom(e.to_string()))?)
+        };
+
+        Ok(Parameter {
+            r#type,
+            value,
+            unit,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Parameter {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(DeserializeParameterVisitor)
+    }
 }
 
 /// # Hecate Input Schema
@@ -186,6 +341,10 @@ pub struct InputSchema {
 
     pub solve: Solve,
 }
+
+// TODO: ensure this is fine
+// unsafe impl Send for InputSchema {}
+// unsafe impl Sync for InputSchema {}
 
 impl InputSchema {
     pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
@@ -522,6 +681,16 @@ lazy_static! {
                 std::process::exit(1);
             }
         };
+        match tera.add_raw_template(
+            "cmakelists",
+            &include_str!("./input_schema/deal.ii/CMakeLists.txt"),
+        ) {
+            Ok(t) => t,
+            Err(e) => {
+                println!("Parsing error(s): {e}");
+                std::process::exit(1);
+            }
+        }
         tera
     };
 }
@@ -568,12 +737,13 @@ impl InputSchema {
 
     pub fn generate_cpp_sources(&self) -> Result<String, CodeGenError> {
         self.validate()?;
+        let gen_conf = &self.gen_conf;
         let factory = deal_ii_factory();
-        let mut blocks = BuildingBlockCollector::new(&factory);
+        let mut blocks = BuildingBlockCollector::new(&factory, gen_conf);
         blocks.newline();
         blocks.comment("Parameters");
-        for (name, value) in &self.parameters {
-            blocks.create(name, Block::Parameter(value.si_value()))?;
+        for (name, quantity) in &self.parameters {
+            blocks.create(name, Block::Parameter(quantity.si_value()))?;
         }
         blocks.newline();
 
@@ -652,13 +822,16 @@ impl InputSchema {
 
         println!("/*\n{system}\n*/\n");
 
-        let mesh = blocks.insert("mesh", factory.mesh("mesh", mesh.get_ref())?)?;
+        let mesh = blocks.insert("mesh", factory.mesh("mesh", mesh.get_ref(), gen_conf)?)?;
 
-        let element = blocks.insert("element", factory.finite_element("element", element)?)?;
+        let element = blocks.insert(
+            "element",
+            factory.finite_element("element", element, gen_conf)?,
+        )?;
 
         let dof_handler = blocks.insert(
             "dof_handler",
-            factory.dof_handler("dof_handler", &DofHandlerConfig { mesh, element })?,
+            factory.dof_handler("dof_handler", &DofHandlerConfig { mesh, element }, gen_conf)?,
         )?;
 
         let vector_config = VectorConfig { dof_handler };
@@ -667,13 +840,20 @@ impl InputSchema {
 
         for vector in system.vectors() {
             let vector_cpp = vector.to_cpp();
-            blocks.insert(&vector_cpp, factory.vector(&vector_cpp, &vector_config)?)?;
+            blocks.insert(
+                &vector_cpp,
+                factory.vector(&vector_cpp, &vector_config, gen_conf)?,
+            )?;
             vectors.insert(vector, vector_cpp.clone());
         }
 
         let sparsity_pattern = blocks.insert(
             "sparsity_pattern",
-            factory.sparsity_pattern("sparsity_pattern", &SparsityPatternConfig { dof_handler })?,
+            factory.sparsity_pattern(
+                "sparsity_pattern",
+                &SparsityPatternConfig { dof_handler },
+                gen_conf,
+            )?,
         )?;
 
         let mut unknowns_matrices: HashMap<&dyn Expr, String> =
@@ -720,6 +900,7 @@ impl InputSchema {
                     element,
                     matrix_config: &matrix_config,
                 },
+                gen_conf,
             )?,
         )?;
         let _mass_mat = blocks.insert(
@@ -732,6 +913,7 @@ impl InputSchema {
                     element,
                     matrix_config: &matrix_config,
                 },
+                gen_conf,
             )?,
         )?;
 
@@ -868,6 +1050,7 @@ impl InputSchema {
         context.insert("time_end", &time.end.seconds());
         context.insert("time_step", &time_step.seconds());
         context.insert("dimension", &dimension);
+        context.insert("mpi", &self.gen_conf.mpi);
 
         // Fill the template with the context
         Ok(TEMPLATES.render("cpp_source", &context)?)
@@ -879,6 +1062,7 @@ struct BuildingBlockCollector<'fa> {
     blocks: IndexMap<String, BuildingBlock>,
     additional_names: HashSet<String>,
     factory: &'fa BuildingBlockFactory<'fa>,
+    gen_conf: &'fa GenConfig,
 }
 
 impl From<BuildingBlock> for tera::Context {
@@ -948,11 +1132,12 @@ pub fn to_cpp_lines<Lines: IntoIterator<Item = String>>(prefix: &str, lines: Lin
 }
 
 impl<'fa> BuildingBlockCollector<'fa> {
-    fn new(factory: &'fa BuildingBlockFactory<'fa>) -> Self {
+    fn new(factory: &'fa BuildingBlockFactory<'fa>, gen_conf: &'fa GenConfig) -> Self {
         BuildingBlockCollector {
             blocks: IndexMap::new(),
             additional_names: HashSet::new(),
             factory,
+            gen_conf,
         }
     }
 
@@ -980,6 +1165,7 @@ impl<'fa> BuildingBlockCollector<'fa> {
 
         let tmp_vector_config = VectorConfig { dof_handler };
         let tmp_matrix_config = MatrixConfig { sparsity_pattern };
+        let gen_conf = self.gen_conf;
         for (
             _,
             BuildingBlock {
@@ -993,14 +1179,14 @@ impl<'fa> BuildingBlockCollector<'fa> {
                 if additional_blocks.contains_key(vector) {
                     continue;
                 }
-                let block = self.factory.vector(vector, &tmp_vector_config)?;
+                let block = self.factory.vector(vector, &tmp_vector_config, gen_conf)?;
                 additional_blocks.insert(vector.to_string(), block);
             }
             for matrix in additional_matrixes {
                 if additional_blocks.contains_key(matrix) {
                     continue;
                 }
-                let block = self.factory.matrix(matrix, &tmp_matrix_config)?;
+                let block = self.factory.matrix(matrix, &tmp_matrix_config, gen_conf)?;
                 additional_blocks.insert(matrix.to_string(), block);
             }
         }
@@ -1046,23 +1232,30 @@ impl<'fa> BuildingBlockCollector<'fa> {
         name: &'na str,
         block: Block<'_>,
     ) -> Result<&'na str, BuildingBlockError> {
+        let gen_conf = self.gen_conf;
         self.insert(
             name,
             match block {
-                Block::Matrix(config) => self.factory.matrix(name, config)?,
-                Block::Vector(vector_config) => self.factory.vector(name, vector_config)?,
+                Block::Matrix(config) => self.factory.matrix(name, config, gen_conf)?,
+                Block::Vector(vector_config) => {
+                    self.factory.vector(name, vector_config, gen_conf)?
+                }
                 Block::SolveUnknown(solve_unknown_config) => {
-                    self.factory.solve_unknown(name, solve_unknown_config)?
+                    self.factory
+                        .solve_unknown(name, solve_unknown_config, gen_conf)?
                 }
                 Block::EquationSetup(equation_setup_config) => {
-                    self.factory.equation_setup(name, equation_setup_config)?
+                    self.factory
+                        .equation_setup(name, equation_setup_config, gen_conf)?
                 }
-                Block::Parameter(value) => self.factory.parameter(name, value)?,
-                Block::Function(function) => self.factory.function(name, function)?,
-                Block::AppyBoundaryCondition(config) => {
-                    self.factory.apply_boundary_condition(name, config)?
+                Block::Parameter(value) => self.factory.parameter(name, &value, gen_conf)?,
+                Block::Function(function) => self.factory.function(name, function, gen_conf)?,
+                Block::AppyBoundaryCondition(config) => self
+                    .factory
+                    .apply_boundary_condition(name, config, gen_conf)?,
+                Block::InitialCondition(config) => {
+                    self.factory.initial_condition(name, config, gen_conf)?
                 }
-                Block::InitialCondition(config) => self.factory.initial_condition(name, config)?,
             },
         )?;
         Ok(name)
@@ -1088,7 +1281,11 @@ impl<'fa> BuildingBlockCollector<'fa> {
 
     fn add_vector_output(&mut self, unknown: &str) -> Result<(), BuildingBlockError> {
         let name = format!("add_vector_output_{unknown}");
-        self.insert(&name, self.factory.add_vector_output(&name, unknown)?)?;
+        self.insert(
+            &name,
+            self.factory
+                .add_vector_output(&name, unknown, self.gen_conf)?,
+        )?;
         Ok(())
     }
 }

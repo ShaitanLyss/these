@@ -4,9 +4,9 @@ message(STATUS "CMake version: ${CMAKE_VERSION}")
 find_package(deal.II 9.6.0 REQUIRED)
 deal_ii_initialize_cached_variables()
 
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE {% if debug %}Debug{% else %}Release{% endif %})
 
-project("deal.II experimentation")
+project("Hecate Generated Simulation with factory: deal.ii")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

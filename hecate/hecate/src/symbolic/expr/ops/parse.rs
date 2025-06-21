@@ -1,8 +1,9 @@
+use indexmap::IndexMap;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use std::{num::ParseIntError, str::FromStr};
 
-use crate::expr::*;
+use crate::{expr::*, symbol};
 
 use thiserror::Error;
 
@@ -131,23 +132,26 @@ impl FromStr for Mul {
     type Err = ParseMulError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Mul::new_move(
-            split_root(s, &['*', '/'])
-                .map(
-                    |(prev, piece)| -> Result<Box<dyn Expr>, Box<ParseExprError>> {
-                        let mut op: Box<dyn Expr> = piece.parse().map_err(|e| Box::new(e))?;
-                        if let Some('/') = prev {
-                            op = op.ipow(-1);
-                        }
-                        Ok(op)
-                    },
-                )
-                .collect::<Result<_, _>>()?,
-        ))
+        let mut ops = Vec::new();
+        for (prev, piece) in split_root(s, &['*', '/']) {
+            let mut op: Box<dyn Expr> = piece.parse().map_err(|e| Box::new(e))?;
+            if let Some('/') = prev {
+                op = op.ipow(-1);
+            }
+
+            if let Some(Mul { operands }) = op.as_mul().cloned() {
+                for op in operands {
+                    ops.push(op);
+                }
+            } else {
+                ops.push(op)
+            }
+        }
+        Ok(Mul { operands: ops })
     }
 }
 
-const func_pattern: &str = r"^(\w+)\(([^\)]*)\)$";
+const func_pattern: &str = r"^(\w+)\((.*?)\)$";
 
 lazy_static! {
     static ref func_re: Regex = Regex::new(func_pattern).unwrap();
@@ -170,7 +174,45 @@ pub enum ParseFunctionError {
 pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunctionError> {
     let args: Vec<_> = args.split(",").map(|arg| arg.trim()).collect();
 
+    // Handle differential operators (dx(...), dt(...), etc.)
+    if name.len() == 2 && name.starts_with("d") {
+        let var = name.chars().last().unwrap();
+
+        let mut var_orders: IndexMap<Symbol, usize> = IndexMap::new();
+        var_orders.insert(
+            Symbol {
+                name: var.to_string(),
+            },
+            1,
+        );
+
+        let mut f = args[0].to_string();
+
+        while let Some(captures) = Regex::new(&format!(r"^d([A-Za-z])\((.*)\)$"))
+            .expect("valid regex")
+            .captures(&f)
+        {
+            let var = captures[1].to_string();
+            f = captures[2].to_string();
+            let order = var_orders.entry(Symbol { name: var }).or_insert(0);
+            *order += 1;
+        }
+
+        return Ok(Box::new(Diff::new_v2(
+            f.parse()
+                .map_err(|e| ParseFunctionError::InvalidFuncExpr(Box::new(e)))?,
+            var_orders,
+        )));
+    }
+
     Ok(match name {
+        "laplacian" => {
+            let laplacian = symbol!("laplacian");
+            let f = parse_expr(args[0])
+                .map_err(|e| ParseFunctionError::InvalidFuncExpr(Box::new(e)))?;
+
+            laplacian * f
+        }
         "diff" => {
             let n_args = args.len();
             if n_args < 2 || n_args > 3 {
@@ -531,6 +573,22 @@ mod tests {
         let res: Box<dyn Expr> = "d^2(2*x*t + t^2 - t)/dt^2".parse().unwrap();
         let [x, t] = symbols!("x", "t");
         let expected = (Integer::new_box(2) * x * t + t * t - t.clone_box()).diff("t", 2);
+        assert_eq!(res, expected)
+    }
+
+    #[test]
+    fn parse_dx_syntax() {
+        let res = parse_expr("dx(dx(x))").unwrap();
+        let [x] = symbols!("x");
+        let expected = x.diff("x", 2);
+        assert_eq!(res, expected)
+    }
+
+    #[test]
+    fn parse_dx_dy_syntax() {
+        let res = parse_expr("dx(dy(x))").unwrap();
+        let [x, y] = symbols!("x", "y");
+        let expected = Diff::new(&x.clone_box(), &[x.clone_box(), y.clone_box()]);
         assert_eq!(res, expected)
     }
 }

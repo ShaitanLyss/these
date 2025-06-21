@@ -16,7 +16,7 @@ pub use std::error::Error as StdError;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::codegen::input_schema::InputSchema;
+pub use crate::codegen::input_schema::InputSchema;
 
 #[cfg(all(feature = "cpp", not(target_family = "wasm")))]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));

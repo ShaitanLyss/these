@@ -1,6 +1,8 @@
-use std::sync::{Arc, Mutex};
-
-use hecate::{IndexMap, codegen::input_schema::InputSchema};
+use chrono::Utc;
+use entity::job::{self, JobStatus};
+use entity::job::{Entity as Job, JobScheduler};
+use hecate::codegen::input_schema::InputSchema;
+use migration::{ExprTrait, Migrator, MigratorTrait};
 use rmcp::{
     Error, RoleServer, ServiceExt,
     model::{
@@ -10,6 +12,10 @@ use rmcp::{
     },
     service::RequestContext,
     tool, transport,
+};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait, IntoSimpleExpr,
+    QueryFilter,
 };
 use serde::Serialize;
 
@@ -23,74 +29,105 @@ impl<T: Serialize> ToJson for T {
     }
 }
 
-#[derive(Clone, Serialize)]
-struct Job {}
-
-impl Job {
-    fn new() -> Self {
-        Self {}
-    }
-}
-
 #[derive(Clone)]
 struct HecateSimulator {
-    sim_jobs: Arc<Mutex<IndexMap<String, Job>>>,
+    db: DatabaseConnection,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum HecateError {
+    #[error("couldn't get home dir")]
+    NoHomeDir,
 }
 
 #[tool(tool_box)]
 impl HecateSimulator {
-    fn new() -> Self {
-        HecateSimulator {
-            sim_jobs: Mutex::new(IndexMap::new()).into(),
-        }
+    async fn new() -> anyhow::Result<Self> {
+        let mut dir = dirs::home_dir().ok_or_else(|| HecateError::NoHomeDir)?;
+        dir.push(".hecate");
+        std::fs::create_dir_all(&dir)?;
+        let res = HecateSimulator {
+            db: Database::connect(format!("sqlite://{}/hecate.db?mode=rwc", dir.display())).await?,
+        };
+
+        Migrator::up(&res.db, None).await?;
+
+        Ok(res)
     }
     #[tool(description = "Get the current weather")]
     fn get_weather() -> Result<CallToolResult, Error> {
         Ok(CallToolResult::success(vec![Content::text("Too hot")]))
     }
 
-    // #[tool(description = "Validate an input schema (useful for simply checking a schema before submitting a job)")]
-    // fn validate_schema(schema: InputSchema) -> Result<CallToolResult, Error> {
-    //
-    // }
-
-    #[tool(description = "Submit a new simulation job")]
-    fn create_job(
+    #[tool(
+        description = "Submit a new simulation job. If no number of num_nodes is provided and mpi is set to true in the schema, the number of nodes will be set to the number of available compute nodes.
+        By default, don't use mpi when running locally, and don't set debug to true. Finally, make sure the cfl condition is respected."
+    )]
+    async fn create_job(
         &self,
-        #[tool(param)] job_id: String,
+        #[tool(param)] name: String,
         #[tool(param)] schema: InputSchema,
+        #[tool(param)] cluster_access_name: Option<String>,
+        #[tool(param)] scheduler: Option<JobScheduler>,
+        #[tool(param)] cluster: Option<String>,
+        #[tool(param)] queue: Option<String>,
+        #[tool(param)] num_nodes: Option<i32>,
     ) -> Result<CallToolResult, Error> {
         schema
             .validate()
-            .map_err(|e| Error::invalid_params(format!("invalid schema : {e}"), None))?;
-        let mut sim_jobs = self.sim_jobs.lock().unwrap();
-        if sim_jobs.contains_key(&job_id) {
-            Err(Error::invalid_params(
-                "job already exists",
-                Some(job_id.into()),
-            ))
-        } else {
-            let res =
-                CallToolResult::success(vec![Content::text(format!("Job {job_id} created!"))]);
-            sim_jobs.insert(job_id, Job::new());
-            Ok(res)
+            .map_err(|e| Error::invalid_params(e.to_string(), None))?;
+        if cluster_access_name.is_some() && scheduler.is_none() {
+            return Err(Error::invalid_params(
+                "cluster execution requires a scheduler",
+                None,
+            ));
         }
+
+        let job = job::ActiveModel {
+            name: Set(name),
+            code: Set(schema
+                .generate_cpp_sources()
+                .map_err(|e| Error::internal_error(e.to_string(), None))?),
+            schema: Set(serde_json::to_value(schema)
+                .map_err(|e| Error::internal_error(e.to_string(), None))?),
+            status: Set(JobStatus::Created),
+            created_at: Set(Utc::now()),
+            cluster_access_name: Set(cluster_access_name),
+            scheduler: Set(scheduler),
+            cluster: Set(cluster),
+            queue: Set(queue),
+            num_nodes: Set(num_nodes),
+            ..Default::default()
+        };
+        let job = job
+            .insert(&self.db)
+            .await
+            .map_err(|e| Error::internal_error(e.to_string(), None))?;
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "id: {}",
+            job.id
+        ))]))
     }
 
     #[tool(description = "List simulation jobs")]
-    fn list_sim_jobs(&self) -> Result<CallToolResult, Error> {
-        let sim_jobs = self.sim_jobs.lock().unwrap();
-        let job_ids = sim_jobs.keys().map(|s| Content::text(s)).collect();
+    async fn list_unfinished_jobs(&self) -> Result<CallToolResult, Error> {
+        let sim_jobs = Job::find()
+            .filter(job::Column::Status.into_simple_expr().not_equals("running"))
+            .all(&self.db)
+            .await
+            .map_err(|e| Error::internal_error(e.to_string(), None))?;
 
-        Ok(CallToolResult::success(job_ids))
+        Ok(CallToolResult::success(vec![Content::text(
+            sim_jobs.to_json(),
+        )]))
     }
 
     #[tool(description = "Get information about a simulation job")]
-    fn sim_job_info(&self, #[tool(param)] job_id: String) -> Result<CallToolResult, Error> {
-        let sim_jobs = self.sim_jobs.lock().unwrap();
-        let job = sim_jobs
-            .get(&job_id)
-            .ok_or_else(|| Error::invalid_params("invalid job id", Some(job_id.into())))?;
+    async fn sim_job_info(&self, #[tool(param)] job_id: i64) -> Result<CallToolResult, Error> {
+        let job = Job::find_by_id(job_id)
+            .one(&self.db)
+            .await
+            .map_err(|e| Error::internal_error(e.to_string(), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(job.to_json())]))
     }
@@ -146,6 +183,7 @@ impl rmcp::ServerHandler for HecateSimulator {
 
 pub async fn serve() -> anyhow::Result<()> {
     let service = HecateSimulator::new()
+        .await?
         .serve(transport::stdio())
         .await
         .inspect_err(|e| {

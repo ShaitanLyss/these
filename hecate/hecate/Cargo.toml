@@ -18,7 +18,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 derive-alias = "0.1.1"
 schemars = {workspace = true}
-serde = { version = "1.0.219", features = ["derive"] }
+serde = { workspace = true }
 serde_json = "1.0.140"
 tera = {version = "1.20.0", default-features = false}
 thiserror = { workspace = true}
@@ -42,7 +42,5 @@ wasm-bindgen = "0.2.100"
 
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-clap = { version = "4.5.36", features = ["derive"] }
-tokio = { version = "1", features = ["full"] }
 rquickjs = {  optional = true, git = "https://github.com/DelSkayn/rquickjs.git", version = "0.9.0", features = ["futures", "macro", "loader"] }
 llrt_modules = { optional = true, git = "https://github.com/awslabs/llrt.git", version = "0.5.1-beta", default-features = false, features = ["crypto", "console", "timers"] }
