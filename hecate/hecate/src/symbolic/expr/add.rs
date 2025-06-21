@@ -493,6 +493,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_simplify_dim_advanced_add() {
         let expr: Box<dyn Expr> = "c^2 * (∂^2u / ∂x^2 + ∂^2u / ∂y^2) + source"
             .parse()

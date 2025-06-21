@@ -39,6 +39,9 @@ jobs:
     - name: Run cargo test
       run: cargo test
       working-directory: ./hecate
+    - name: Test examples
+      run: cargo test --examples
+      working-directory: ./hecate
 
   # Check formatting with rustfmt
   formatting:

@@ -1469,6 +1469,7 @@ dependencies = [
  "itertools 0.14.0",
  "lazy_static",
  "llrt_modules",
+ "log",
  "num",
  "num-traits",
  "regex",

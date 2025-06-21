@@ -7,6 +7,7 @@ use derive_more::{Deref, DerefMut, FromStr, IntoIterator};
 use indexmap::IndexMap as BaseIndexMap;
 use itertools::Itertools;
 use lazy_static::lazy_static;
+use log::info;
 use regex::Regex;
 use schemars::{JsonSchema, json_schema};
 use serde::de::Error;
@@ -14,7 +15,10 @@ use serde::de::Visitor;
 use serde::ser::SerializeMap;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::fs::{self, File};
 use std::hash::Hash;
+use std::io::Write;
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::LazyLock;
 pub trait RawRepr {
@@ -703,6 +707,32 @@ pub enum SchemaValidationError {
     EquationNotFound(String),
 }
 
+pub struct CodeGenRes {
+    code: String,
+    schema: String,
+    file_name: String,
+    cmakelists: Option<String>,
+}
+
+impl CodeGenRes {
+    pub fn write_to_dir<P: AsRef<Path>>(&self, dir: P) -> Result<(), std::io::Error> {
+        let dir = dir.as_ref();
+
+        fs::create_dir_all(dir)?;
+        let mut code_file = File::create(dir.join(&self.file_name))?;
+        code_file.write_all(self.code.as_bytes())?;
+        if let Some(cmakelists) = &self.cmakelists {
+            let mut cmakelists_file = File::create(dir.join("CMakeLists.txt"))?;
+            cmakelists_file.write_all(cmakelists.as_bytes())?;
+        }
+        let mut schema_file = File::create(dir.join("schema.hecate.yaml"))?;
+        schema_file.write_all(self.schema.as_bytes())?;
+
+        eprintln!("Wrote project files to {}.", dir.display());
+        Ok(())
+    }
+}
+
 impl InputSchema {
     pub fn validate(&self) -> Result<(), SchemaValidationError> {
         let Solve {
@@ -733,6 +763,25 @@ impl InputSchema {
         // either as parameter of function
 
         Ok(())
+    }
+
+    pub fn generate_sources(&self) -> Result<CodeGenRes, CodeGenError> {
+        let code = self.generate_cpp_sources()?;
+        let mut context = tera::Context::new();
+        context.insert("debug", &self.gen_conf.debug);
+        let cmakelists = Some(Tera::one_off(
+            include_str!("./input_schema/deal.ii/CMakeLists.txt"),
+            &context,
+            false,
+        )?);
+        let schema = serde_yaml::to_string(self)?;
+
+        Ok(CodeGenRes {
+            schema,
+            code,
+            file_name: "main.cpp".to_string(),
+            cmakelists,
+        })
     }
 
     pub fn generate_cpp_sources(&self) -> Result<String, CodeGenError> {
