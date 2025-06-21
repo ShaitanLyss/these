@@ -415,19 +415,19 @@ impl QuantityTrait for si::Area {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct CustomQuantity {
     #[serde(default)]
-    pub length: usize,
+    pub length: isize,
     #[serde(default)]
-    pub time: usize,
+    pub time: isize,
     #[serde(default)]
-    pub mass: usize,
+    pub mass: isize,
     #[serde(default)]
-    pub current: usize,
+    pub current: isize,
     #[serde(default)]
-    pub temperature: usize,
+    pub temperature: isize,
     #[serde(default)]
-    pub amount: usize,
+    pub amount: isize,
     #[serde(default)]
-    pub luminous_intensity: usize,
+    pub luminous_intensity: isize,
     #[serde(default)]
     pub value: f64,
 }

@@ -497,7 +497,7 @@ mod tests {
         let expr: Box<dyn Expr> = "c^2 * (∂^2u / ∂x^2 + ∂^2u / ∂y^2) + source"
             .parse()
             .unwrap();
-        let expected: Box<dyn Expr> = "c^2 * (laplacian * u) + source".parse().unwrap();
+        let expected: Box<dyn Expr> = "c^2 * laplacian * u + source".parse().unwrap();
 
         assert_eq!(expr.simplify_with_dimension(2), expected);
     }

@@ -56,7 +56,7 @@ impl HecateSimulator {
 
     #[tool(
         description = "Submit a new simulation job. If no number of num_nodes is provided and mpi is set to true in the schema, the number of nodes will be set to the number of available compute nodes.
-        By default, don't use mpi when running locally, and don't set debug to true."
+        By default, don't use mpi when running locally, and don't set debug to true. Finally, make sure the cfl condition is respected."
     )]
     async fn create_job(
         &self,
