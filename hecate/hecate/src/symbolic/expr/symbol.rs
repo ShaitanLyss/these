@@ -22,6 +22,12 @@ impl Symbol {
     }
 }
 
+impl std::fmt::Display for Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
 impl Expr for Symbol {
     fn known_expr(&self) -> KnownExpr {
         KnownExpr::Symbol(self)

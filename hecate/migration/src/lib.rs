@@ -4,6 +4,7 @@ mod m20220101_000001_create_table;
 mod m20250619_072715_add_cluster;
 mod m20250620_091631_add_cluster_and_num_nodes;
 mod m20250620_094455_add_queue;
+mod m20250620_232605_add_code_and_cmakelists;
 
 pub struct Migrator;
 
@@ -15,6 +16,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250619_072715_add_cluster::Migration),
             Box::new(m20250620_091631_add_cluster_and_num_nodes::Migration),
             Box::new(m20250620_094455_add_queue::Migration),
+            Box::new(m20250620_232605_add_code_and_cmakelists::Migration),
         ]
     }
 }

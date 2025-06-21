@@ -171,7 +171,11 @@ impl Equation {
         let (coeff, _) = (&res.lhs).get_coeff();
 
         if coeff.is_zero() {
-            panic!("Solving failed")
+            panic!(
+                "Solving failed\nbase_eq:\n{}\nres:\n{}",
+                eq.str(),
+                res.str()
+            )
         }
 
         if !coeff.is_one() {

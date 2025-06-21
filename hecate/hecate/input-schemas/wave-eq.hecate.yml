@@ -1,6 +1,6 @@
 generation:
   matrix_free: false
-  mpi: true
+  mpi: false
 
 meshes:
     mesh:

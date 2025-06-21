@@ -10,7 +10,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Job::Table)
-                    .add_column(string_null(Job::Cluster))
+                    .add_column(string(Job::Code).default(""))
                     .take(),
             )
             .await?;
@@ -18,7 +18,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Job::Table)
-                    .add_column(integer_null(Job::NumNodes).take())
+                    .add_column(string_null(Job::Cmakelists))
                     .take(),
             )
             .await?;
@@ -30,7 +30,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Job::Table)
-                    .drop_column(Job::Cluster)
+                    .drop_column(Job::Code)
                     .take(),
             )
             .await?;
@@ -38,7 +38,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Job::Table)
-                    .drop_column(Job::NumNodes)
+                    .drop_column(Job::Cmakelists)
                     .take(),
             )
             .await?;
@@ -49,6 +49,6 @@ impl MigrationTrait for Migration {
 #[derive(DeriveIden)]
 enum Job {
     Table,
-    NumNodes,
-    Cluster,
+    Code,
+    Cmakelists,
 }

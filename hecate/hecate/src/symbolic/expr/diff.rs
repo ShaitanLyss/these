@@ -128,14 +128,14 @@ impl Expr for Diff {
             .iter()
             .map(|(var, order)| {
                 if *order == 1 {
-                    var.str()
+                    format!("∂{var}")
                 } else {
-                    format!("{}^{}", var.str(), order)
+                    format!("∂{}^{}", var.str(), order)
                 }
             })
             .join(".");
 
-        format!("∂{}{f} / ∂{denom}", exponent,)
+        format!("∂{}{f} / {denom}", exponent,)
     }
 }
 

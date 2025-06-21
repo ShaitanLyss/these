@@ -5,6 +5,7 @@ use crate::StdError;
 use const_format::{concatcp, formatcp};
 use derive_more::{Deref, DerefMut};
 use dyn_clone::DynClone;
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use schemars::{JsonSchema, Schema, json_schema};
@@ -12,10 +13,13 @@ use serde::de::Visitor;
 use serde::{Deserialize, Serialize, de::Error};
 use serde_yaml::Value;
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::ops::Deref;
 use std::str::FromStr;
+use std::sync::LazyLock;
 use thiserror::Error;
+use ucfirst::ucfirst;
 
 #[derive(Debug, PartialEq, PartialOrd, Clone, Deref, DerefMut)]
 pub struct WithRawRepr<L> {
@@ -115,16 +119,57 @@ where
 }
 
 // #[typetag::serde(tag = "type")]
-// pub trait DynQuantity: DynClone + Debug {}
-// dyn_clone::clone_trait_object!(QuantityTrait);
+// pub trait DynQuantity: DynClone + Debug {
+//     fn si_value(&self) -> f64;
+// }
+// dyn_clone::clone_trait_object!(DynQuantity);
 
-pub trait QuantityTrait: Debug + FromStr {
-    const DEFAULT_UNIT: &str;
-    const NAME: &str;
-    fn si_value(&self) -> f64;
+// pub fn parse_quantity(
+//     raw: &str,
+//     r#type: &str,
+// ) -> Result<WithRawRepr<Box<dyn QuantityTrait>>, ParseQuantityError> {
+//     match r#type {
+//         "speed" => raw.parse()
+//     }
+// }
+//
+// impl JsonSchema for dyn QuantityTrait {
+//     fn schema_name() -> Cow<'static, str> {
+//         "Quantity".into()
+//     }
+//
+//     fn json_schema(generator: &mut schemars::SchemaGenerator) -> Schema {
+//         json_schema!({
+//             "title": "Quantity",
+//             "description": "A physical quantity with a unit. If no unit is specified, the default unit is used.",
+//             "oneOf": [
+//                 {
+//                     "type": "string",
+//                     "pattern": QUANTITY_PATTERN
+//                 },
+//                 {
+//                     "type": "number"
+//                 }
+//             ]
+//         })
+//     }
+// }
+
+pub trait QuantityTrait: Clone + Debug + FromStr {
+    // fn name(&self) -> Cow<'static, str> {
+    // }
+    // fn default_unit(&self) -> Cow<'static, str>;
     fn description() -> Cow<'static, str> {
-        format!("A {} (default_unit: {}).", Self::NAME, Self::DEFAULT_UNIT).into()
+        format!("A {}.", Self::type_id()).into()
     }
+
+    fn name() -> Cow<'static, str> {
+        Self::type_id().split('_').map(ucfirst).join(" ").into()
+    }
+
+    fn type_id() -> Cow<'static, str>;
+
+    fn si_value(&self) -> f64;
 }
 
 const PARTIAL_QUANTITY_PATTERN: &str =
@@ -161,11 +206,44 @@ pub enum ParseQuantityError {
 #[derive(Debug, DerefMut, Deref, Clone, PartialEq, PartialOrd)]
 pub struct Quantity<T: QuantityTrait>(T);
 
+pub trait QuantitySchema {
+    fn type_id() -> Cow<'static, str>;
+
+    fn description() -> Cow<'static, str> {
+        format!("A {}.", Self::type_id()).into()
+    }
+}
+
+impl<T: QuantityTrait> JsonSchema for Quantity<T> {
+    fn schema_name() -> Cow<'static, str> {
+        T::type_id()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> Schema {
+        json_schema!({
+            "title": ucfirst(&T::type_id()),
+            "description": T::description(),
+            "oneOf": [
+                {
+                    "type": "string",
+                    "pattern": QUANTITY_PATTERN
+                },
+                {
+                    "type": "number"
+                }
+            ]
+        })
+    }
+}
+
 impl<T: QuantityTrait + PartialEq> PartialEq<T> for Quantity<T> {
     fn eq(&self, other: &T) -> bool {
         self.0 == *other
     }
 }
+
+static UNITS: LazyLock<HashMap<Cow<'static, str>, Cow<'static, str>>> =
+    LazyLock::new(|| [("length".into(), "m".into())].into());
 
 impl<T: QuantityTrait> FromStr for Quantity<T>
 where
@@ -177,7 +255,11 @@ where
             if captures.get(1).is_some() {
                 return Err(ParseQuantityError::NoReference);
             }
-            let mut unit: String = T::DEFAULT_UNIT.to_string();
+            let mut unit: String = UNITS
+                .get(&T::type_id())
+                .cloned()
+                .unwrap_or_else(|| "".into())
+                .to_string();
             if let Some(u) = captures.get(3) {
                 unit = format_unit(u.as_str())?;
             }
@@ -225,50 +307,15 @@ where
 //     }
 // }
 
-impl<T: QuantityTrait> JsonSchema for Quantity<T> {
-    fn schema_name() -> Cow<'static, str> {
-        format!("Quantity<{}>", T::NAME).into()
-    }
-
-    fn json_schema(generator: &mut schemars::SchemaGenerator) -> Schema {
-        json_schema!({
-            "title": ucfirst::ucfirst(T::NAME),
-            "description": T::description(),
-            "oneOf": [
-                {
-                    "type": "string",
-                    "pattern": QUANTITY_PATTERN
-                },
-                {
-                    "type": "number"
-                }
-            ]
-        })
-        // let mut schema = SchemaObject::default();
-        //schema.instance_type = Some(SingleOrVec::Single(Box::new(InstanceType::String)));
-        // schema.subschemas = Some(Box::new(SubschemaValidation {
-        //     one_of: Some(vec![
-        //         // Schema for string type
-        //         Schema::Object(SchemaObject {
-        //             instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::String))),
-        //             string: Some(Box::new(StringValidation {
-        //                 pattern: Some(NO_REF_QUANTITY_PATTERN.to_string()),
-        //                 ..Default::default()
-        //             })),
-        //             ..Default::default()
-        //         }),
-        //         // Schema for number type
-        //         Schema::Object(SchemaObject {
-        //             instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Number))),
-        //             ..Default::default()
-        //         }),
-        //     ]),
-        //     ..Default::default()
-        // }));
-        //
-        // Schema::Object(schema)
-    }
-}
+// impl<T: QuantityTrait> JsonSchema for Quantity<T> {
+//     fn schema_name() -> Cow<'static, str> {
+//         T::schema_name()
+//     }
+//
+//     fn json_schema(generator: &mut schemars::SchemaGenerator) -> Schema {
+//         T::json_schema(generator)
+//     }
+// }
 
 // impl<T> WithRawRepr<T>
 // where
@@ -347,17 +394,103 @@ impl DefaultUnit for si::Ratio {
 /// Area (default: km²)
 pub type Area = WithRawRepr<Quantity<si::Area>>;
 
-// impl DefaultUnit for si::Area {
-//     const DEFAULT_UNIT: &str = "km²";
-// }
+impl QuantitySchema for si::Area {
+    fn type_id() -> Cow<'static, str> {
+        "area".into()
+    }
+}
 
 impl QuantityTrait for si::Area {
-    const DEFAULT_UNIT: &str = "m²";
-
-    const NAME: &str = "area";
-
+    fn type_id() -> Cow<'static, str> {
+        "area".into()
+    }
     fn si_value(&self) -> f64 {
         self.get::<uom::si::area::square_meter>()
+    }
+}
+
+/// # CustomQuantity
+/// This allows defining custom quantities based on
+/// the seven base quantities of the international system.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
+pub struct CustomQuantity {
+    #[serde(default)]
+    pub length: usize,
+    #[serde(default)]
+    pub time: usize,
+    #[serde(default)]
+    pub mass: usize,
+    #[serde(default)]
+    pub current: usize,
+    #[serde(default)]
+    pub temperature: usize,
+    #[serde(default)]
+    pub amount: usize,
+    #[serde(default)]
+    pub luminous_intensity: usize,
+    #[serde(default)]
+    pub value: f64,
+}
+
+/// # Quantity
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", content = "value")]
+#[serde(rename_all = "snake_case")]
+pub enum QuantityEnum {
+    Speed(Speed),
+    Length(Length),
+    Area(Area),
+    Volume(Volume),
+    Mass(Mass),
+    Temperature(Temperature),
+    DiffusionCoefficient(DiffusionCoefficient),
+    Custom(CustomQuantity),
+}
+
+impl QuantityEnum {
+    pub fn si_value(&self) -> f64 {
+        match self {
+            QuantityEnum::Speed(q) => q.value,
+            QuantityEnum::Length(q) => q.value,
+            QuantityEnum::DiffusionCoefficient(q) => q.value,
+            QuantityEnum::Area(q) => q.value,
+            QuantityEnum::Mass(q) => q.value,
+            QuantityEnum::Volume(q) => q.value,
+            QuantityEnum::Temperature(q) => q.value,
+            QuantityEnum::Custom(q) => q.value,
+        }
+    }
+}
+//
+// impl Deref for QuantityEnum {
+//     type Target = dyn QuantityTrait;
+//
+//     fn deref(&self) -> &Self::Target {
+//         todo!()
+//     }
+//
+// }
+
+// impl QuantityEnum {
+//     pub fn si_value(&self) -> f64 {
+//         match self {
+//             QuantityEnum::Speed(v) => v.si_value(),
+//         }
+//     }
+// }
+
+pub type DiffusionCoefficient = WithRawRepr<Quantity<si::DiffusionCoefficient>>;
+// impl DynQuantity for si::DiffusionCoefficient {
+//     fn si_value(&self) -> f64 {
+//         self.get::<uom::si::diffusion_coefficient::square_meter_per_second>()
+//     }
+// }
+impl QuantityTrait for si::DiffusionCoefficient {
+    fn type_id() -> Cow<'static, str> {
+        "diffusion_coefficient".into()
+    }
+    fn si_value(&self) -> f64 {
+        self.get::<uom::si::diffusion_coefficient::square_meter_per_second>()
     }
 }
 
@@ -382,14 +515,20 @@ pub type Length = WithRawRepr<Quantity<si::Length>>;
 //     const DEFAULT_UNIT: &str = "km";
 // }
 impl QuantityTrait for si::Length {
+    fn type_id() -> Cow<'static, str> {
+        "length".into()
+    }
     fn si_value(&self) -> f64 {
         self.get::<uom::si::length::meter>()
     }
-
-    const DEFAULT_UNIT: &str = "m";
-
-    const NAME: &str = "length";
 }
+
+impl QuantitySchema for si::Length {
+    fn type_id() -> Cow<'static, str> {
+        "length".into()
+    }
+}
+
 impl Quantity<si::Length> {
     pub fn meters(&self) -> f64 {
         self.get::<uom::si::length::meter>()
@@ -401,36 +540,49 @@ pub type Speed = WithRawRepr<Quantity<si::Velocity>>;
 // impl DefaultUnit for si::Velocity {
 //     const DEFAULT_UNIT: &str = "m/s";
 // }
-impl<T: QuantityTrait> SchemaId for T {
-    fn schema_id() -> Cow<'static, str> {
-        T::NAME.into()
-    }
-}
+// impl<T: QuantityTrait> SchemaId for T {
+//     fn schema_id() -> Cow<'static, str> {
+//         T::NAME.into()
+//     }
+// }
 
 impl<T: SchemaId> SchemaId for WithRawRepr<T> {
     fn schema_id() -> Cow<'static, str> {
         T::schema_id()
     }
 }
-impl<T: QuantityTrait> DefaultUnit for T {
-    const DEFAULT_UNIT: &str = T::DEFAULT_UNIT;
-}
+
 impl QuantityTrait for si::Velocity {
     fn si_value(&self) -> f64 {
         self.get::<uom::si::velocity::meter_per_second>()
     }
 
-    const NAME: &'static str = "speed";
-
-    const DEFAULT_UNIT: &str = "m";
+    fn type_id() -> Cow<'static, str> {
+        "speed".into()
+    }
 }
 
-// /// Mass (default: grams, since small mass quantities in geoscience, especially in analysis, use grams)
-// pub type Mass = Quantity<si::Mass>;
-//
-// impl DefaultUnit for si::Mass {
-//     const DEFAULT_UNIT: &str = "g";
-// }
+impl QuantitySchema for si::Velocity {
+    fn type_id() -> Cow<'static, str> {
+        "speed".into()
+    }
+}
+
+/// Mass (default: grams, since small mass quantities in geoscience, especially in analysis, use grams)
+pub type Mass = WithRawRepr<Quantity<si::Mass>>;
+
+impl QuantityTrait for si::Mass {
+    fn type_id() -> Cow<'static, str> {
+        "mass".into()
+    }
+    fn si_value(&self) -> f64 {
+        self.get::<uom::si::mass::gram>()
+    }
+}
+
+impl DefaultUnit for si::Mass {
+    const DEFAULT_UNIT: &str = "g";
+}
 
 /// Time (default: seconds)
 pub type Time = WithRawRepr<Quantity<si::Time>>;
@@ -439,42 +591,82 @@ impl Quantity<si::Time> {
         self.si_value()
     }
 }
+impl QuantitySchema for si::Time {
+    fn type_id() -> Cow<'static, str> {
+        "time".into()
+    }
+}
 impl QuantityTrait for si::Time {
-    const DEFAULT_UNIT: &str = "s";
-
-    const NAME: &str = "time";
-
+    fn type_id() -> Cow<'static, str> {
+        "time".into()
+    }
     fn si_value(&self) -> f64 {
         self.get::<uom::si::time::second>()
     }
 }
 
 /// Temperature (default: Celsius, as temperature is often measured in Celsius in geoscience contexts)
-pub type Temperature = WithRawRepr<si::ThermodynamicTemperature>;
+pub type Temperature = WithRawRepr<Quantity<si::ThermodynamicTemperature>>;
 
 impl DefaultUnit for si::ThermodynamicTemperature {
     const DEFAULT_UNIT: &'static str = "°C";
 }
 
+impl QuantityTrait for si::ThermodynamicTemperature {
+    fn type_id() -> Cow<'static, str> {
+        "temperature".into()
+    }
+    fn si_value(&self) -> f64 {
+        self.get::<uom::si::thermodynamic_temperature::kelvin>()
+    }
+}
+
 /// Pressure (default: pascal, as pressure is often measured in pascal in scientific contexts)
-pub type Pressure = WithRawRepr<si::Pressure>;
+pub type Pressure = WithRawRepr<Quantity<si::Pressure>>;
 
 impl DefaultUnit for si::Pressure {
     const DEFAULT_UNIT: &'static str = "Pa";
 }
 
+impl QuantityTrait for si::Pressure {
+    fn type_id() -> Cow<'static, str> {
+        "pressure".into()
+    }
+    fn si_value(&self) -> f64 {
+        self.get::<uom::si::pressure::pascal>()
+    }
+}
+
 /// Volume (default: cubic meters, which is the SI unit for volume)
-pub type Volume = WithRawRepr<si::Volume>;
+pub type Volume = WithRawRepr<Quantity<si::Volume>>;
 
 impl DefaultUnit for si::Volume {
     const DEFAULT_UNIT: &'static str = "m³";
 }
 
+impl QuantityTrait for si::Volume {
+    fn type_id() -> Cow<'static, str> {
+        "volume".into()
+    }
+    fn si_value(&self) -> f64 {
+        self.get::<uom::si::volume::cubic_meter>()
+    }
+}
+
 /// Molar Mass (default: grams per mole, as it's commonly used in geoscience)
-pub type MolarMass = WithRawRepr<si::MolarMass>;
+pub type MolarMass = WithRawRepr<Quantity<si::MolarMass>>;
 
 impl DefaultUnit for si::MolarMass {
     const DEFAULT_UNIT: &'static str = "g/mol";
+}
+
+impl QuantityTrait for si::MolarMass {
+    fn type_id() -> Cow<'static, str> {
+        "molar_mass".into()
+    }
+    fn si_value(&self) -> f64 {
+        self.get::<uom::si::molar_mass::gram_per_mole>()
+    }
 }
 
 #[cfg(test)]

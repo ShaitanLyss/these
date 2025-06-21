@@ -24,6 +24,8 @@ pub struct Model {
     pub name: String,
     pub created_at: DateTimeUtc,
     pub schema: Json,
+    pub code: String,
+    pub cmakelists: Option<String>,
     pub status: JobStatus,
     pub cluster_access_name: Option<String>,
     pub scheduler: Option<JobScheduler>,
