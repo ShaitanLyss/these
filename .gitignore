@@ -12,6 +12,10 @@ MonoCoderRepo
 node_modules
 
 
+# Quack
+duckies
+
+
 # Databases
 *.db
 
