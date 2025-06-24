@@ -20,10 +20,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait, IntoSimpleExpr,
     QueryFilter,
 };
-use sea_orm::{
-    ConnectionTrait, DbBackend, DerivePartialModel, FromQueryResult, Iterable, QuerySelect,
-    QueryTrait,
-};
+use sea_orm::{DerivePartialModel, FromQueryResult, QueryTrait};
 use serde::Serialize;
 
 use crate::executor::ExecutorError;

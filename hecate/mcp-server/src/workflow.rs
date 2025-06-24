@@ -25,7 +25,7 @@ impl<E: StdError + Sync + Send + 'static> From<RunJobError<E>> for rmcp::Error {
 
 pub async fn run_job<Exec: Executor>(
     job: job::Model,
-    mut db: DatabaseConnection,
+    db: DatabaseConnection,
     executor: Exec,
 ) -> Result<(), RunJobError<Exec::Error>> {
     if job.cmakelists.is_none() {

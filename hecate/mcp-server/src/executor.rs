@@ -1,16 +1,12 @@
 use log::{debug, info};
-use regex::{Captures, Regex};
+use regex::Regex;
 use russh::{
     ChannelMsg,
-    client::{self, Session},
+    client::{self},
     keys::PrivateKeyWithHashAlg,
 };
-use russh_config::Config;
-use std::{borrow::Cow, io, string::FromUtf8Error, sync::LazyLock, time::Duration};
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    process::Command,
-};
+use std::{io, string::FromUtf8Error, sync::LazyLock};
+use tokio::process::Command;
 
 use thiserror::Error;
 
