@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use entity::job::{self, JobStatus};
 use log::{debug, error, info};
@@ -8,7 +8,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::executor::{Executor, ExecutorError};
 use crate::scheduler::{Scheduler, SchedulerJobConfig};
-use crate::{StdError, scheduler};
+use crate::StdError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

@@ -9,7 +9,7 @@ use std::{
     io,
     path::Path,
     string::FromUtf8Error,
-    sync::{LazyLock, mpsc::channel},
+    sync::LazyLock,
 };
 use tokio::process::Command;
 
