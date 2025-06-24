@@ -4,8 +4,8 @@ use entity::job::{Entity as Job, JobScheduler};
 use hecate::codegen::input_schema::{CodeGenRes, InputSchema};
 use migration::{ExprTrait, Migrator, MigratorTrait};
 mod executor;
-mod workflow;
 mod scheduler;
+mod workflow;
 use rmcp::{
     Error, RoleServer, ServiceExt,
     model::{

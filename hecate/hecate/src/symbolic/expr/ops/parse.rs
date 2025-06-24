@@ -592,7 +592,6 @@ mod tests {
         assert_eq!(res, expected)
     }
 
-
     #[test]
     fn parse_d2_dt2_syntax() {
         let res = parse_expr("d2_dt2(u)").unwrap();
