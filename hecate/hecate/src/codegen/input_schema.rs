@@ -7,7 +7,7 @@ use derive_more::{Deref, DerefMut, FromStr, IntoIterator};
 use indexmap::IndexMap as BaseIndexMap;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use log::info;
+use log::{debug, info};
 use regex::Regex;
 use schemars::{JsonSchema, json_schema};
 use serde::de::Error;
@@ -708,10 +708,10 @@ pub enum SchemaValidationError {
 }
 
 pub struct CodeGenRes {
-    code: String,
-    schema: String,
-    file_name: String,
-    cmakelists: Option<String>,
+    pub code: String,
+    pub schema: String,
+    pub file_name: String,
+    pub cmakelists: Option<String>,
 }
 
 impl CodeGenRes {
@@ -869,7 +869,8 @@ impl InputSchema {
             .to_constant_mesh()
             .simplify();
 
-        println!("/*\n{system}\n*/\n");
+        blocks.comment(&format!("/*\n{system}\n*/\n"));
+        debug!("System:\n{system}");
 
         let mesh = blocks.insert("mesh", factory.mesh("mesh", mesh.get_ref(), gen_conf)?)?;
 

@@ -591,4 +591,13 @@ mod tests {
         let expected = Diff::new(&x.clone_box(), &[x.clone_box(), y.clone_box()]);
         assert_eq!(res, expected)
     }
+
+
+    #[test]
+    fn parse_d2_dt2_syntax() {
+        let res = parse_expr("d2_dt2(u)").unwrap();
+        let [u] = symbols!("u");
+        let expected = u.diff("t", 2);
+        assert_eq!(res, expected)
+    }
 }

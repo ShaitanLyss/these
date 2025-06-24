@@ -9,8 +9,9 @@ hecate = { path = "../hecate" }
 rmcp = { git = "https://github.com/jokemanfire/rust-sdk.git", branch = "deps", version = "0.1.5", features = ["server", "transport-io"] }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
-tokio = "1.45.1"
+tokio = { version = "1.45.1", features = ["rt-multi-thread"] }
 tracing-subscriber = "0.3.19"
+log = { workspace = true }
 serde = "1.0.219"
 serde_json = "1.0.140"
 schemars = { workspace = true }
@@ -19,4 +20,11 @@ chrono = { version = "0.4.41", features = ["serde"] }
 entity = { path = "../entity"}
 migration = { path = "../migration"}
 dirs = "6.0.0"
+clap = { version = "4.5.40", features = ["derive"] }
+russh-config = "0.50.0"
+russh = "0.52.1"
+env_logger = "0.11.8"
+regex = {workspace = true}
+shellexpand = "3.1.1"
+russh-sftp = "2.1.1"
 

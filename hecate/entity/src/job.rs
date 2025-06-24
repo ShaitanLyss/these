@@ -25,6 +25,7 @@ pub struct Model {
     pub created_at: DateTimeUtc,
     pub schema: Json,
     pub code: String,
+    pub code_filename: Option<String>,
     pub cmakelists: Option<String>,
     pub status: JobStatus,
     pub cluster_access_name: Option<String>,
@@ -32,6 +33,7 @@ pub struct Model {
     pub cluster: Option<String>,
     pub queue: Option<String>,
     pub num_nodes: Option<i32>,
+    pub remote_job_id: Option<String>,
 }
 
 #[derive(
@@ -42,6 +44,7 @@ pub struct Model {
     db_type = "String(StringLen::None)",
     rename_all = "camelCase"
 )]
+#[serde(rename_all = "snake_case")]
 pub enum JobScheduler {
     Oarsub,
     IBMLsf,
@@ -53,9 +56,9 @@ pub enum JobScheduler {
     db_type = "String(StringLen::None)",
     rename_all = "camelCase"
 )]
+#[serde(rename_all = "snake_case")]
 pub enum JobStatus {
     Created,
-    Compiling,
     Queued,
     Running,
     Finished,

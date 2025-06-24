@@ -1,23 +1,33 @@
 use chrono::Utc;
 use entity::job::{self, JobStatus};
 use entity::job::{Entity as Job, JobScheduler};
-use hecate::codegen::input_schema::InputSchema;
+use hecate::codegen::input_schema::{CodeGenRes, InputSchema};
 use migration::{ExprTrait, Migrator, MigratorTrait};
+mod executor;
+mod workflow;
 use rmcp::{
     Error, RoleServer, ServiceExt,
     model::{
-        CallToolResult, Content, GetPromptRequestMethod, GetPromptRequestParam, GetPromptResult,
-        ListPromptsResult, PaginatedRequestParam, Prompt, PromptMessage, PromptMessageContent,
-        PromptMessageRole, ServerCapabilities, ServerInfo,
+        CallToolResult, Content, GetPromptRequestParam, GetPromptResult, ListPromptsResult,
+        PaginatedRequestParam, Prompt, PromptMessage, PromptMessageContent, PromptMessageRole,
+        ServerCapabilities, ServerInfo,
     },
     service::RequestContext,
     tool, transport,
 };
+use sea_orm::prelude::DateTimeUtc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait, IntoSimpleExpr,
     QueryFilter,
 };
+use sea_orm::{
+    ConnectionTrait, DbBackend, DerivePartialModel, FromQueryResult, Iterable, QuerySelect,
+    QueryTrait,
+};
 use serde::Serialize;
+
+use crate::executor::ExecutorError;
+pub use std::error::Error as StdError;
 
 trait ToJson {
     fn to_json(&self) -> String;
@@ -30,7 +40,7 @@ impl<T: Serialize> ToJson for T {
 }
 
 #[derive(Clone)]
-struct HecateSimulator {
+pub struct HecateSimulator {
     db: DatabaseConnection,
 }
 
@@ -40,9 +50,15 @@ pub enum HecateError {
     NoHomeDir,
 }
 
+impl<E: StdError> From<ExecutorError<E>> for rmcp::Error {
+    fn from(value: ExecutorError<E>) -> Self {
+        rmcp::Error::internal_error(value.to_string(), None)
+    }
+}
+
 #[tool(tool_box)]
 impl HecateSimulator {
-    async fn new() -> anyhow::Result<Self> {
+    pub async fn new() -> anyhow::Result<Self> {
         let mut dir = dirs::home_dir().ok_or_else(|| HecateError::NoHomeDir)?;
         dir.push(".hecate");
         std::fs::create_dir_all(&dir)?;
@@ -61,9 +77,12 @@ impl HecateSimulator {
 
     #[tool(
         description = "Submit a new simulation job. If no number of num_nodes is provided and mpi is set to true in the schema, the number of nodes will be set to the number of available compute nodes.
-        By default, don't use mpi when running locally, and don't set debug to true. Finally, make sure the cfl condition is respected."
+        By default, don't use mpi when running locally, and don't set debug to true. Finally, make sure the cfl condition is respected.
+        Cluster execution requires a scheduler, a cluster_access_name and a cluster name.
+        This tool takes care of starting the workflow of the job, ie. compiling and running it.
+        "
     )]
-    async fn create_job(
+    pub async fn create_job(
         &self,
         #[tool(param)] name: String,
         #[tool(param)] schema: InputSchema,
@@ -83,29 +102,53 @@ impl HecateSimulator {
             ));
         }
 
+        let CodeGenRes {
+            code,
+            file_name,
+            cmakelists,
+            schema: _,
+        } = schema
+            .generate_sources()
+            .map_err(|e| Error::internal_error(e.to_string(), None))?;
         let job = job::ActiveModel {
             name: Set(name),
-            code: Set(schema
-                .generate_cpp_sources()
-                .map_err(|e| Error::internal_error(e.to_string(), None))?),
+            code: Set(code),
+            cmakelists: Set(cmakelists),
+            code_filename: Set(Some(file_name)),
             schema: Set(serde_json::to_value(schema)
                 .map_err(|e| Error::internal_error(e.to_string(), None))?),
             status: Set(JobStatus::Created),
             created_at: Set(Utc::now()),
-            cluster_access_name: Set(cluster_access_name),
+            cluster_access_name: Set(cluster_access_name.clone()),
             scheduler: Set(scheduler),
             cluster: Set(cluster),
             queue: Set(queue),
             num_nodes: Set(num_nodes),
             ..Default::default()
         };
+
         let job = job
             .insert(&self.db)
             .await
             .map_err(|e| Error::internal_error(e.to_string(), None))?;
+        let job_id = job.id;
+
+        match cluster_access_name {
+            Some(host) => {
+                let executor = executor::SshExecutor::new(&host)
+                    .await
+                    .map_err(|e| ExecutorError::CreationFailed(e))?;
+                tokio::spawn(workflow::run_job(job, self.db.clone(), executor));
+            }
+            None => {
+                let executor = executor::LocalExecutor::new();
+                tokio::spawn(workflow::run_job(job, self.db.clone(), executor));
+            }
+        }
+
         Ok(CallToolResult::success(vec![Content::text(format!(
             "id: {}",
-            job.id
+            job_id
         ))]))
     }
 
@@ -122,8 +165,45 @@ impl HecateSimulator {
         )]))
     }
 
-    #[tool(description = "Get information about a simulation job")]
-    async fn sim_job_info(&self, #[tool(param)] job_id: i64) -> Result<CallToolResult, Error> {
+    #[tool(
+        description = "Get partial information about a simulation job (excluding source files and input schema)"
+    )]
+    pub async fn sim_job_info(&self, #[tool(param)] job_id: i64) -> Result<CallToolResult, Error> {
+        #[derive(FromQueryResult, Serialize, DerivePartialModel)]
+        #[sea_orm(entity = "Job")]
+        struct JobInfo {
+            pub id: i64,
+            pub name: String,
+            pub created_at: DateTimeUtc,
+            // pub schema: Json,
+            // pub code: String,
+            // pub code_filename: Option<String>,
+            // pub cmakelists: Option<String>,
+            pub status: JobStatus,
+            pub cluster_access_name: Option<String>,
+            pub scheduler: Option<JobScheduler>,
+            pub cluster: Option<String>,
+            pub queue: Option<String>,
+            pub num_nodes: Option<i32>,
+            pub remote_job_id: Option<String>,
+        }
+        let job_info = Job::find_by_id(job_id)
+            .into_partial_model::<JobInfo>()
+            .one(&self.db)
+            .await
+            .map_err(|e| Error::internal_error(e.to_string(), None))?
+            .ok_or_else(|| Error::resource_not_found("Job not found", None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(
+            job_info.to_json(),
+        )]))
+    }
+
+    #[tool(description = "Get full information about a simulation job (including source files)")]
+    pub async fn sim_job_full_info(
+        &self,
+        #[tool(param)] job_id: i64,
+    ) -> Result<CallToolResult, Error> {
         let job = Job::find_by_id(job_id)
             .one(&self.db)
             .await
