@@ -5,7 +5,12 @@ use russh::{
     client::{self},
     keys::PrivateKeyWithHashAlg,
 };
-use std::{io, string::FromUtf8Error, sync::LazyLock};
+use std::{
+    io,
+    path::Path,
+    string::FromUtf8Error,
+    sync::{LazyLock, mpsc::channel},
+};
 use tokio::process::Command;
 
 use thiserror::Error;
@@ -24,11 +29,22 @@ pub enum ExecutorError<E: StdError> {
     NonZeroExitCode(u32, String),
     #[error("command returned no response")]
     NoResponse(String),
+    #[error("failed to write file")]
+    FileWriteFailed(#[source] E),
+    #[error("failed to create directory")]
+    MkdirsFailed(#[source] E),
 }
 
 pub trait Executor {
     type Error: StdError;
+    async fn mkdirs<D: AsRef<Path>>(&self, dir: D) -> Result<(), ExecutorError<Self::Error>>;
     async fn execute(&self, cmd: &str) -> Result<String, ExecutorError<Self::Error>>;
+
+    async fn write_file<F: AsRef<Path>>(
+        &self,
+        file: F,
+        content: &str,
+    ) -> Result<(), ExecutorError<Self::Error>>;
 }
 
 pub struct LocalExecutor;
@@ -54,6 +70,20 @@ impl Executor for LocalExecutor {
             .map_err(|e| ExecutorError::ExecuteFailed(e))?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         Ok(stdout.to_string())
+    }
+
+    async fn write_file<F: AsRef<Path>>(
+        &self,
+        file: F,
+        content: &str,
+    ) -> Result<(), ExecutorError<Self::Error>> {
+        std::fs::write(&file, content).map_err(|e| ExecutorError::FileWriteFailed(e))?;
+        debug!("wrote local file {}", file.as_ref().display());
+        Ok(())
+    }
+
+    async fn mkdirs<D: AsRef<Path>>(&self, dir: D) -> Result<(), ExecutorError<Self::Error>> {
+        std::fs::create_dir_all(dir).map_err(|e| ExecutorError::MkdirsFailed(e.into()))
     }
 }
 
@@ -97,6 +127,8 @@ pub enum SshExecutorError {
 }
 
 use SshExecutorError::*;
+// use russh::cipher;
+// const CIPHER_ORDER: &[cipher::Name] = &[];
 
 impl SshExecutor {
     pub async fn new(host: &str) -> Result<Self, SshExecutorError> {
@@ -130,6 +162,14 @@ impl SshExecutor {
         };
 
         let config = client::Config {
+            preferred: russh::Preferred {
+                // kex: (),
+                // key: (),
+                // cipher: CIPHER_ORDER.into(),
+                // mac: (),
+                // compression: (),
+                ..Default::default()
+            },
             ..Default::default()
         };
         let sh = SshClient {};
@@ -185,13 +225,27 @@ impl SshExecutor {
 
 impl Executor for SshExecutor {
     type Error = SshExecutorError;
+
+    async fn mkdirs<D: AsRef<Path>>(&self, dir: D) -> Result<(), ExecutorError<Self::Error>> {
+        self.execute(&format!("mkdir -p {}", dir.as_ref().display()))
+            .await?;
+        Ok(())
+    }
+
     async fn execute(&self, cmd: &str) -> Result<String, ExecutorError<SshExecutorError>> {
         let mut channel = self
             .session
             .channel_open_session()
             .await
             .map_err(|e| ExecutorError::ExecuteFailed(e.into()))?;
-        debug!("running command: {cmd}");
+        debug!(
+            "running command: {}",
+            if cmd.starts_with("echo") {
+                "echo [..]"
+            } else {
+                cmd
+            }
+        );
         channel
             .exec(true, cmd)
             .await
@@ -226,6 +280,20 @@ impl Executor for SshExecutor {
             Some(code) => Err(ExecutorError::NonZeroExitCode(code, cmd.to_string())),
             _ => Err(ExecutorError::NoResponse(cmd.to_string())),
         }
+    }
+
+    async fn write_file<F: AsRef<Path>>(
+        &self,
+        file: F,
+        content: &str,
+    ) -> Result<(), ExecutorError<Self::Error>> {
+        let escaped_content = content.replace("\'", "\\\'");
+        self.execute(&format!(
+            "echo -n '{escaped_content}' > {}",
+            file.as_ref().display()
+        ))
+        .await?;
+        Ok(())
     }
 }
 

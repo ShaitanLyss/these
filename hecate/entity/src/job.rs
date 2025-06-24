@@ -28,11 +28,13 @@ pub struct Model {
     pub code_filename: Option<String>,
     pub cmakelists: Option<String>,
     pub status: JobStatus,
+    pub compiler: Option<String>,
     pub cluster_access_name: Option<String>,
     pub scheduler: Option<JobScheduler>,
     pub cluster: Option<String>,
     pub queue: Option<String>,
     pub num_nodes: Option<i32>,
+    pub walltime: Option<String>,
     pub remote_job_id: Option<String>,
 }
 
@@ -47,7 +49,7 @@ pub struct Model {
 #[serde(rename_all = "snake_case")]
 pub enum JobScheduler {
     Oarsub,
-    IBMLsf,
+    // IBMLsf,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize)]

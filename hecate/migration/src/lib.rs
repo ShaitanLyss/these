@@ -7,6 +7,8 @@ mod m20250620_094455_add_queue;
 mod m20250620_232605_add_code_and_cmakelists;
 mod m20250624_093459_add_code_filename;
 mod m20250624_094955_add_remote_job_id;
+mod m20250624_123858_add_compiler;
+mod m20250624_135928_add_walltime;
 
 pub struct Migrator;
 
@@ -21,6 +23,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20250620_232605_add_code_and_cmakelists::Migration),
             Box::new(m20250624_093459_add_code_filename::Migration),
             Box::new(m20250624_094955_add_remote_job_id::Migration),
+            Box::new(m20250624_123858_add_compiler::Migration),
+            Box::new(m20250624_135928_add_walltime::Migration),
         ]
     }
 }

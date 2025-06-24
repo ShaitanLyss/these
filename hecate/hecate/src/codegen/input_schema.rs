@@ -869,7 +869,7 @@ impl InputSchema {
             .to_constant_mesh()
             .simplify();
 
-        blocks.comment(&format!("/*\n{system}\n*/\n"));
+        // blocks.comment(&format!("/*\n{system}\n*/\n"));
         debug!("System:\n{system}");
 
         let mesh = blocks.insert("mesh", factory.mesh("mesh", mesh.get_ref(), gen_conf)?)?;

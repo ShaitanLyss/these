@@ -5,6 +5,7 @@ use hecate::codegen::input_schema::{CodeGenRes, InputSchema};
 use migration::{ExprTrait, Migrator, MigratorTrait};
 mod executor;
 mod workflow;
+mod scheduler;
 use rmcp::{
     Error, RoleServer, ServiceExt,
     model::{
@@ -20,7 +21,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait, IntoSimpleExpr,
     QueryFilter,
 };
-use sea_orm::{DerivePartialModel, FromQueryResult, QueryTrait};
+use sea_orm::{DerivePartialModel, FromQueryResult};
 use serde::Serialize;
 
 use crate::executor::ExecutorError;
@@ -83,6 +84,7 @@ impl HecateSimulator {
         &self,
         #[tool(param)] name: String,
         #[tool(param)] schema: InputSchema,
+        #[tool(param)] compiler: Option<String>,
         #[tool(param)] cluster_access_name: Option<String>,
         #[tool(param)] scheduler: Option<JobScheduler>,
         #[tool(param)] cluster: Option<String>,
@@ -115,6 +117,7 @@ impl HecateSimulator {
             schema: Set(serde_json::to_value(schema)
                 .map_err(|e| Error::internal_error(e.to_string(), None))?),
             status: Set(JobStatus::Created),
+            compiler: Set(compiler),
             created_at: Set(Utc::now()),
             cluster_access_name: Set(cluster_access_name.clone()),
             scheduler: Set(scheduler),
@@ -177,6 +180,7 @@ impl HecateSimulator {
             // pub code_filename: Option<String>,
             // pub cmakelists: Option<String>,
             pub status: JobStatus,
+            pub compiler: Option<String>,
             pub cluster_access_name: Option<String>,
             pub scheduler: Option<JobScheduler>,
             pub cluster: Option<String>,
