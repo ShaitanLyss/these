@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
-use std::{num::ParseIntError, str::FromStr};
+use std::{num::ParseIntError, str::FromStr, sync::LazyLock};
 
 use crate::{expr::*, symbol};
 
@@ -169,7 +169,13 @@ pub enum ParseFunctionError {
     InvalidOrderFormat(String, ParseIntError),
     #[error("invalid argument")]
     InvalidArg(#[from] Box<ParseExprError>),
+    #[error("invalid differential expression")]
+    InvalidDiff(#[from] ParseDiffError),
 }
+
+static D_DVAR_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[d∂]\^?([\d⁰¹²³⁴⁵⁶⁷⁸⁹]*)\s*[\/_]\s*[d∂]\(?(\w+?)\)?\^?([\d⁰¹²³⁴⁵⁶⁷⁸]*)$").unwrap()
+});
 
 pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunctionError> {
     let args: Vec<_> = args.split(",").map(|arg| arg.trim()).collect();
@@ -203,6 +209,33 @@ pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunc
                 .map_err(|e| ParseFunctionError::InvalidFuncExpr(Box::new(e)))?,
             var_orders,
         )));
+    }
+
+    if let Some(captures) = D_DVAR_RE.captures(name) {
+        let num_order = &captures[1];
+        let den_order = &captures[3];
+        let var = Symbol::new(&captures[2]);
+        let num_order: usize = num_order
+            .parse()
+            .map_err(|e| ParseFunctionError::InvalidOrderFormat(num_order.to_string(), e))?;
+        let den_order: usize = den_order
+            .parse()
+            .map_err(|e| ParseFunctionError::InvalidOrderFormat(den_order.to_string(), e))?;
+
+        if num_order != den_order {
+            Err(ParseDiffError::OrderMismatch(num_order, den_order))?
+        }
+
+        if args.len() != 1 {
+            Err(ParseFunctionError::BadArgCount(
+                name.to_string(),
+                args.len(),
+                "1".to_string(),
+            ))?
+        }
+
+        let expr = parse_expr(args[0]).map_err(|e| ParseDiffError::BadExpr(Box::new(e)))?;
+        return Ok(Box::new(Diff::new_move(expr, vec![var; num_order])));
     }
 
     Ok(match name {
