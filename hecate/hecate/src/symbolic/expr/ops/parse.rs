@@ -12,9 +12,9 @@ use crate::{Equation, Expr, Integer};
 #[derive(Error, Debug, PartialEq)]
 pub enum ParseExprError {
     #[error("bad equation: {0}")]
-    Equation(#[from] ParseEquationError),
+    BadEquation(#[from] ParseEquationError),
     #[error("parse integer: {0}")]
-    Integer(#[from] ParseIntError),
+    BadInt(#[from] ParseIntegerError),
     #[error("parse symbol: {0}")]
     BadSymbol(#[from] ParseSymbolError),
     #[error("bad addition: {0}")]
@@ -43,11 +43,17 @@ pub enum ParseEquationError {
     InvalidRhs(Box<ParseExprError>),
 }
 
+#[derive(Debug, Error, PartialEq)]
+#[error("failed to parse integer: {0}")]
+pub struct ParseIntegerError(String, #[source] ParseIntError);
+
 impl FromStr for Integer {
-    type Err = ParseIntError;
+    type Err = ParseIntegerError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Integer { value: s.parse()? })
+        Ok(Integer {
+            value: s.parse().map_err(|e| ParseIntegerError(s.to_string(), e))?,
+        })
     }
 }
 
@@ -99,7 +105,7 @@ impl FromStr for Symbol {
 #[derive(Error, Debug, PartialEq)]
 pub enum ParseAddError {
     #[error("bad operand: {0}")]
-    BadOperand(#[from] Box<ParseExprError>),
+    BadOperand(String, #[source] Box<ParseExprError>),
 }
 
 impl FromStr for Add {
@@ -108,15 +114,15 @@ impl FromStr for Add {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Add::new_v2(
             split_root(s, &['+', '-'])
-                .map(
-                    |(prev, piece)| -> Result<Box<dyn Expr>, Box<ParseExprError>> {
-                        let mut op: Box<dyn Expr> = piece.parse().map_err(|e| Box::new(e))?;
-                        if let Some('-') = prev {
-                            op = -op;
-                        }
-                        Ok(op)
-                    },
-                )
+                .map(|(prev, piece)| -> Result<Box<dyn Expr>, ParseAddError> {
+                    let mut op: Box<dyn Expr> = piece
+                        .parse()
+                        .map_err(|e| ParseAddError::BadOperand(piece.into(), Box::new(e)))?;
+                    if let Some('-') = prev {
+                        op = -op;
+                    }
+                    Ok(op)
+                })
                 .collect::<Result<_, _>>()?,
         ))
     }
@@ -125,7 +131,7 @@ impl FromStr for Add {
 #[derive(Error, Debug, PartialEq)]
 pub enum ParseMulError {
     #[error("bad operand: {0}")]
-    BadOperand(#[from] Box<ParseExprError>),
+    BadOperand(String, #[source] Box<ParseExprError>),
 }
 
 impl FromStr for Mul {
@@ -134,7 +140,9 @@ impl FromStr for Mul {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut ops = Vec::new();
         for (prev, piece) in split_root(s, &['*', '/']) {
-            let mut op: Box<dyn Expr> = piece.parse().map_err(|e| Box::new(e))?;
+            let mut op: Box<dyn Expr> = piece
+                .parse()
+                .map_err(|e| ParseMulError::BadOperand(piece.into(), Box::new(e)))?;
             if let Some('/') = prev {
                 op = op.ipow(-1);
             }
@@ -167,10 +175,10 @@ pub enum ParseFunctionError {
     InvalidFuncExpr(Box<ParseExprError>),
     #[error("invalid order format: {0}, {1}")]
     InvalidOrderFormat(String, ParseIntError),
-    #[error("invalid argument")]
-    InvalidArg(#[from] Box<ParseExprError>),
+    #[error("invalid argument: {0}")]
+    InvalidArg(String, #[source] Box<ParseExprError>),
     #[error("invalid differential expression")]
-    InvalidDiff(#[from] ParseDiffError),
+    InvalidDiff(String, #[source] ParseDiffError),
 }
 
 static D_DVAR_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -223,7 +231,10 @@ pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunc
             .map_err(|e| ParseFunctionError::InvalidOrderFormat(den_order.to_string(), e))?;
 
         if num_order != den_order {
-            Err(ParseDiffError::OrderMismatch(num_order, den_order))?
+            Err(ParseFunctionError::InvalidDiff(
+                name.to_string(),
+                ParseDiffError::OrderMismatch(num_order, den_order),
+            ))?
         }
 
         if args.len() != 1 {
@@ -234,7 +245,12 @@ pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunc
             ))?
         }
 
-        let expr = parse_expr(args[0]).map_err(|e| ParseDiffError::BadExpr(Box::new(e)))?;
+        let expr = parse_expr(args[0]).map_err(|e| {
+            ParseFunctionError::InvalidDiff(
+                args[0].to_string(),
+                ParseDiffError::BadExpr(Box::new(e)),
+            )
+        })?;
         return Ok(Box::new(Diff::new_move(expr, vec![var; num_order])));
     }
 
@@ -271,7 +287,7 @@ pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunc
                 .into_iter()
                 .map(|a| -> Result<Box<dyn Expr>, ParseFunctionError> {
                     Ok(a.parse()
-                        .map_err(|e| ParseFunctionError::InvalidArg(Box::new(e)))?)
+                        .map_err(|e| ParseFunctionError::InvalidArg(a.into(), Box::new(e)))?)
                 })
                 .collect();
 
@@ -313,7 +329,7 @@ impl FromStr for expr::Pow {
 
 lazy_static! {
     static ref diff_re: Regex = Regex::new(
-        r"^[d∂]\^?([\d⁰¹²³⁴⁵⁶⁷⁸⁹]*)\(?(.+?)\)?\s*/\s*[d∂]\(?(\w+?)\)?\^?([\d⁰¹²³⁴⁵⁶⁷⁸]*)$"
+        r"^[d∂]\^?([\d⁰¹²³⁴⁵⁶⁷⁸⁹]*)\(?(.+?)\)?\s*[/_]\s*[d∂]\(?(\w+?)\)?\^?([\d⁰¹²³⁴⁵⁶⁷⁸]*)$"
     )
     .unwrap();
 }
@@ -374,45 +390,119 @@ impl TryFrom<Captures<'_>> for Diff {
     }
 }
 
+#[derive(Debug, Error, PartialEq)]
+pub enum ParseRationalError {
+    #[error("invalid rational format: {0}, expected 'numerator / denominator'")]
+    InvalidFormat(String),
+    #[error("invalid numerator: {0}")]
+    InvalidNumerator(String),
+    #[error("invalid denominator: {0}")]
+    InvalidDenominator(String),
+}
+
+static RATIONAL_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\s*?([^/\s]+?)\s*?(?:/\s*?([^/\s]*?)\s*?)?$").unwrap());
+
+impl FromStr for Rational {
+    type Err = ParseRationalError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let captures = RATIONAL_RE
+            .captures(s)
+            .ok_or_else(|| ParseRationalError::InvalidFormat(s.to_string()))?;
+        let num = &captures[1];
+
+        let num: Rational = (if let Ok(num) = num.parse::<i32>() {
+            Ok(num.into())
+        } else if let Ok(num) = num.parse::<f64>() {
+            Ok(Rational::from_float(num))
+        } else {
+            Err(ParseRationalError::InvalidNumerator(num.to_string()))
+        })?;
+
+        let den = captures.get(2);
+
+        let den = den.map(|den| -> Result<_, _> {
+            if let Ok(den) = den.as_str().parse::<i32>() {
+                Ok(den.into())
+            } else if let Ok(den) = den.as_str().parse::<f64>() {
+                Ok(Rational::from_float(den))
+            } else {
+                Err(ParseRationalError::InvalidDenominator(
+                    den.as_str().to_string(),
+                ))
+            }
+        });
+
+        let den: Rational = if let Some(den) = den { den? } else { 1.into() };
+
+        Ok(num / den)
+    }
+}
+
 pub fn parse_expr(s: &str) -> Result<Box<dyn Expr>, ParseExprError> {
     let s = s.trim();
     Ok(if s.split("=").collect::<Vec<_>>().len() >= 2 {
         Box::new(s.parse::<Equation>()?)
     } else if let Some(captured_func) = func_re.captures(s) {
         return Ok(parse_function(&captured_func[1], &captured_func[2])?);
-    } else if s
+    }
+    // Integer
+    else if s
         .chars()
         .enumerate()
         .all(|(i, c)| c.is_numeric() || i == 0 && c == '-')
     {
         Box::new(s.parse::<Integer>()?)
-    } else if let Some((_, add_piece)) = split_root(s, &['+', '-']).next()
+    }
+    // Rationals
+    else if let Ok(r) = s.parse::<Rational>() {
+        Box::new(r)
+    }
+    // Additions, Subtractions
+    else if let Some((_, add_piece)) = split_root(s, &['+', '-']).next()
         && add_piece.len() != s.len()
     {
         Box::new(s.parse::<Add>()?)
-    } else if let Some(captured_diff) = diff_re.captures(s) {
+    }
+    // Differentiations
+    else if let Some(captured_diff) = diff_re.captures(s) {
         Box::new(TryInto::<Diff>::try_into(captured_diff)?)
-    } else if let Some((_, mul_piece)) = split_root(s, &['*', '/']).next()
+    }
+    // Multiplications, Divisions
+    else if let Some((_, mul_piece)) = split_root(s, &['*', '/']).next()
         && mul_piece.len() != s.len()
     {
         Box::new(s.parse::<Mul>()?)
-    } else if s.len() > 0
+    }
+    // Brackets
+    else if s.len() > 0
         && let Some(first) = s.chars().next()
         && let Some(i_opener) = openers
             .iter()
             .enumerate()
             .find_map(|(i, opener)| if opener == &first { Some(i) } else { None })
+        && let Some(last) = s.chars().last()
+        && let Some(i_closer) = closers
+            .iter()
+            .enumerate()
+            .find_map(|(i, closer)| if closer == &last { Some(i) } else { None })
+        && i_opener == i_closer
     {
-        let last = s.chars().last().unwrap();
-        let closer = closers[i_opener];
-
-        if closer != last {
-            return Err(ParseExprError::BracketMismatch(openers[i_opener], last));
-        }
+        // let last = s.chars().last().unwrap();
+        // let closer = closers[i_opener];
+        //
+        // if closer != last {
+        //     return Err(ParseExprError::BracketMismatch(openers[i_opener], last));
+        // }
         return parse_expr(&s[1..s.len() - 1]);
-    } else if s.contains("^") {
+    }
+    // Powers
+    else if s.contains("^") {
         Box::new(s.parse::<Pow>()?)
-    } else {
+    }
+    // Symbols
+    else {
         Box::new(s.parse::<Symbol>()?)
     })
 }
@@ -442,6 +532,10 @@ impl<'a, 'b> Iterator for RootSplitter<'a, 'b> {
                 self.depth -= 1;
             } else if self.depth == 0 && self.patterns.contains(&c) {
                 let part = &self.s[self.begin..abs_i];
+                // Avoid returning empty parts
+                if part.trim().is_empty() {
+                    continue;
+                }
                 self.begin = abs_i + 1; // Start after the current pattern
                 self.position = abs_i + 1;
                 let res = (self.prev_splitter, part.trim());
@@ -525,7 +619,7 @@ mod tests {
         let res = parse_expr("1 ==");
         assert_eq!(
             res,
-            Err(ParseExprError::Equation(
+            Err(ParseExprError::BadEquation(
                 ParseEquationError::WrongNumberOfOperands(3)
             ))
         )
@@ -536,7 +630,9 @@ mod tests {
         let res = parse_expr("1 =");
         assert_eq!(
             res,
-            Err(ParseExprError::Equation(ParseEquationError::EmptyOperand))
+            Err(ParseExprError::BadEquation(
+                ParseEquationError::EmptyOperand
+            ))
         )
     }
 
@@ -631,5 +727,50 @@ mod tests {
         let [u] = symbols!("u");
         let expected = u.diff("t", 2);
         assert_eq!(res, expected)
+    }
+
+    #[test]
+    fn parse_d2u_dt2_syntax() {
+        let res = parse_expr("d2u_dt2").unwrap();
+        let [u] = symbols!("u");
+        let expected = u.diff("t", 2);
+        assert_eq!(res, expected)
+    }
+
+    #[test]
+    fn parse_gaussian_pulse() {
+        let res = parse_expr("exp(-100*((x-5)^2 + (y-5)^2))").unwrap();
+        let [x, y] = symbols!("x", "y");
+
+        let expected = Func::new_move_box(
+            "exp".into(),
+            vec![
+                Integer::new_box(-100)
+                    * ((x - Integer::new_box(5).get_ref()).ipow(2)
+                        + (y - Integer::new_box(5).get_ref()).ipow(2)),
+            ],
+        );
+        assert_eq!(res.get_ref(), expected.get_ref())
+    }
+
+    #[test]
+    fn parse_brackets_sum() {
+        let res = parse_expr("(1 + 2) + (3 + 4)").unwrap();
+        assert_eq!(
+            res.srepr(),
+            "Add(Add(Integer(1), Integer(2)), Add(Integer(3), Integer(4)))"
+        )
+    }
+
+    #[test]
+    fn parse_rational() {
+        let res = parse_expr("1/2").unwrap();
+        assert_eq!(res, Rational::new_box(1, 2));
+    }
+
+    #[test]
+    fn parse_float() {
+        let res = parse_expr("0.5").unwrap();
+        assert_eq!(res, Rational::new_box(1, 2));
     }
 }

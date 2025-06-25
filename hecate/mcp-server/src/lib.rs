@@ -78,6 +78,7 @@ impl HecateSimulator {
         By default, don't use mpi when running locally, and don't set debug to true. Finally, make sure the cfl condition is respected.
         Cluster execution requires a scheduler, a cluster_access_name and a cluster name.
         This tool takes care of starting the workflow of the job, ie. compiling and running it.
+        If only one node of compute, don't use mpi.
         "
     )]
     pub async fn create_job(

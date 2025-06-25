@@ -5,12 +5,7 @@ use russh::{
     client::{self},
     keys::PrivateKeyWithHashAlg,
 };
-use std::{
-    io,
-    path::Path,
-    string::FromUtf8Error,
-    sync::LazyLock,
-};
+use std::{io, path::Path, string::FromUtf8Error, sync::LazyLock};
 use tokio::process::Command;
 
 use thiserror::Error;

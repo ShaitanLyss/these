@@ -38,4 +38,3 @@ parameters:
   thermal_diffusivity:
     type: diffusion_coefficient
     value: "1e-5 m²/s"
-

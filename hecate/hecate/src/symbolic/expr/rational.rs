@@ -1,4 +1,4 @@
-use num::{NumCast, integer::gcd};
+use num::{Float, NumCast, integer::gcd};
 
 use super::*;
 
@@ -127,6 +127,34 @@ impl<N: ToInteger> From<N> for Rational {
             num: value.to_integer().value,
             denom: 1,
         }
+    }
+}
+
+// impl<N: num::Integer> From<N> for Rational {
+//     fn from(value: N) -> Self {
+//         Rational {
+//             num: value.to_isize().unwrap(),
+//             denom: 1,
+//         }
+//     }
+// }
+
+impl Rational {
+    pub fn from_float<N: Float + ToString>(value: N) -> Rational {
+        let srepr = value.to_string();
+        let decimals = srepr.split('.').last().unwrap_or("");
+        let num_decimals = decimals.len();
+
+        let mut rational = Rational {
+            num: srepr.replace(".", "").parse().expect("valid integer"),
+            denom: (10 as isize).pow(num_decimals as u32),
+        };
+
+        let gcd = gcd(rational.num, rational.denom);
+        rational.num /= gcd;
+        rational.denom /= gcd;
+
+        rational
     }
 }
 
@@ -283,6 +311,17 @@ impl std::ops::Mul<Rational> for Rational {
         Rational {
             num: self.num * rhs.num,
             denom: self.denom * rhs.denom,
+        }
+    }
+}
+
+impl std::ops::Div<Rational> for Rational {
+    type Output = Rational;
+
+    fn div(self, rhs: Rational) -> Self::Output {
+        Rational {
+            num: self.num * rhs.denom,
+            denom: self.denom * rhs.num,
         }
     }
 }

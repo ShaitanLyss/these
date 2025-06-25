@@ -6,9 +6,9 @@ use sea_orm::ActiveModelTrait;
 use sea_orm::ActiveValue::Set;
 use sea_orm::DatabaseConnection;
 
+use crate::StdError;
 use crate::executor::{Executor, ExecutorError};
 use crate::scheduler::{Scheduler, SchedulerJobConfig};
-use crate::StdError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
