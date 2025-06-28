@@ -48,6 +48,7 @@ enum Commands {
 async fn main() -> Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
+        .format_timestamp(None)
         .parse_default_env()
         .init();
     let args = Args::parse();
@@ -72,24 +73,8 @@ async fn main() -> Result<()> {
             if let Some(debug) = debug {
                 schema.gen_conf.debug = *debug;
             }
-            let sources = schema.generate_cpp_sources()?;
-            // Create build directory
-            fs::create_dir_all("./build")?;
-            // Write sources
-            fs::write("./build/main.cpp", sources)?;
-            // Write cmakelists.txt
-            let mut context = tera::Context::new();
-            context.insert("debug", &schema.gen_conf.debug);
-            fs::write(
-                "./build/CMakeLists.txt",
-                Tera::one_off(
-                    include_str!("../../hecate/src/codegen/input_schema/deal.ii/CMakeLists.txt"),
-                    &context,
-                    false,
-                )?,
-                // include_str!("./codegen/input_schema/deal.ii/CMakeLists.txt"),
-            )?;
-
+            let sources = schema.generate_sources()?;
+            sources.write_to_dir("./build")?;
             println!("Sources generated in ./build!");
         }
         Commands::BuildingBlock => {
