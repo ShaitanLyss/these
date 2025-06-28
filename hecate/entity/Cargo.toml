@@ -2,6 +2,7 @@
 name = "entity"
 edition = "2024"
 publish = false
+rust-version.workspace = true
 
 
 [dependencies]
