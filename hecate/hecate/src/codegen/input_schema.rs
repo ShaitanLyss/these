@@ -545,7 +545,14 @@ impl<'de> Deserialize<'de> for FunctionDef {
 pub enum UnknownProperty {
     Constant(i64),
     ConstantFloat(f64),
-    Function(String),
+    /// Function name referencing one of the globally defined functions.
+    FunctionName(String),
+}
+
+impl Default for UnknownProperty {
+    fn default() -> Self {
+        UnknownProperty::Constant(0)
+    }
 }
 impl UnknownProperty {
     fn to_function_name(&self) -> String {
@@ -557,7 +564,7 @@ impl UnknownProperty {
                     f.to_string().replace("-", "neg").replace(".", "dot")
                 )
             }
-            UnknownProperty::Function(s) => format!("fn_{s}"),
+            UnknownProperty::FunctionName(s) => format!("fn_{s}"),
         }
     }
 }
@@ -568,14 +575,18 @@ impl UnknownProperty {
 pub struct Unknown {
     /// # Initial Condition
     /// The initial value of the unknown.
+    #[serde(default)]
     pub initial: UnknownProperty,
 
     /// # Boundary Condition
     /// The boundary condition of the unknown.
-    pub boundary: Option<UnknownProperty>,
+    #[serde(default)]
+    pub boundary: UnknownProperty,
 
-    /// # Derivative Conditions
-    /// The derivative's conditions of the unknown.
+    /// # Time Derivative Conditions
+    /// The time derivative's conditions of the unknown.
+    /// The number of derivative specified should match the max time order of the equations - 1.
+    /// (ie. an equation of order 2 in time needs one derivative specified)
     pub derivative: Option<Box<Unknown>>,
 }
 
@@ -585,25 +596,26 @@ pub struct ConstantFunction {
 }
 
 impl Unknown {
-    pub fn visit_symbols<F: Fn(&str)>(&self, f: F) {
-        if let UnknownProperty::Function(initial) = &self.initial {
-            f(initial);
+    pub fn visit_symbols<E, F: Fn(&str) -> Result<(), E>>(&self, f: F) -> Result<(), E> {
+        if let UnknownProperty::FunctionName(initial) = &self.initial {
+            f(initial)?;
         }
-        if let Some(UnknownProperty::Function(boundary)) = &self.boundary {
-            f(boundary)
+        if let UnknownProperty::FunctionName(boundary) = &self.boundary {
+            f(boundary)?
         }
 
         if let Some(derivative) = &self.derivative {
-            derivative.visit_symbols(f);
+            derivative.visit_symbols(f)?;
         }
+        Ok(())
     }
 
     pub fn has_symbol(&self, s: &str) -> bool {
-        if let UnknownProperty::Function(initial) = &self.initial
+        if let UnknownProperty::FunctionName(initial) = &self.initial
             && initial == s
         {
             true
-        } else if let Some(UnknownProperty::Function(boundary)) = &self.boundary
+        } else if let UnknownProperty::FunctionName(boundary) = &self.boundary
             && boundary == s
         {
             true
@@ -619,9 +631,9 @@ impl Unknown {
         mut f: F,
     ) -> Result<(), E> {
         f(&self.initial)?;
-        if let Some(boundary) = &self.boundary {
-            f(boundary)?;
-        }
+        // if let Some(boundary) = &self.boundary {
+        f(&self.boundary)?;
+        // }
         if let Some(derivative) = &self.derivative {
             derivative.visit_props(f)?;
         }
@@ -705,6 +717,8 @@ pub enum SchemaValidationError {
     MeshNotFound(String),
     #[error("equation(s) {0} not found")]
     EquationNotFound(String),
+    #[error("function name not found: {0}")]
+    FunctionNotFound(String),
 }
 
 pub struct CodeGenRes {
@@ -752,6 +766,15 @@ impl InputSchema {
             .iter()
             .filter_map(|e| (!self.equations.contains_key(e)).then_some(e))
             .collect_vec();
+
+        for unknown in self.unknowns.values() {
+            unknown.visit_symbols(|f_name| -> Result<(), SchemaValidationError> {
+                if !self.functions.contains_key(f_name) {
+                    return Err(SchemaValidationError::FunctionNotFound(f_name.to_string()));
+                }
+                Ok(())
+            })?;
+        }
 
         if missing_eqs.len() > 0 {
             return Err(SchemaValidationError::EquationNotFound(
@@ -811,7 +834,6 @@ impl InputSchema {
             .iter()
             .map(|e| self.equations[e].simplify_with_dimension(*dimension))
             .collect_vec();
-        dbg!(&equations);
 
         let unknowns = self.unknowns.keys().map(|s| &s[..]).collect_vec();
         let mut knowns = Vec::with_capacity(self.functions.len());
@@ -1045,9 +1067,9 @@ impl InputSchema {
                 // Retrive boundary condition function
                 let function = &unknown_config
                     .boundary
-                    .as_ref()
+                    // .as_ref()
                     // .or_else(|| )
-                    .ok_or_else(|| CodeGenError::MissingBoundary(unknown_cpp.to_string()))?
+                    // .ok_or_else(|| CodeGenError::MissingBoundary(unknown_cpp.to_string()))?
                     .to_function_name();
 
                 // Apply boundary condition

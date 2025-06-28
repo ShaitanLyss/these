@@ -1,7 +1,7 @@
 mod oarsub;
 use std::sync::LazyLock;
 
-use entity::job::{self, JobScheduler};
+use entity::job::{self, JobScheduler, JobStatus};
 use regex::Regex;
 use thiserror::Error;
 
@@ -11,11 +11,12 @@ pub enum SchedulerError {}
 use job::JobScheduler::*;
 
 pub trait Scheduler {
-    fn job_status_cmd(&self, job_id: String) -> String;
-
     fn create_job_cmd(&self, config: SchedulerJobConfig) -> String;
 
     fn parse_job_id(&self, response: &str) -> Option<String>;
+
+    fn job_status_cmd(&self, job_id: &str) -> String;
+    fn parse_job_status(&self, response: &str) -> Option<JobStatus>;
 }
 
 #[derive(Default)]
@@ -30,10 +31,6 @@ pub struct SchedulerJobConfig<'a> {
 }
 
 impl Scheduler for JobScheduler {
-    fn job_status_cmd(&self, job_id: String) -> String {
-        todo!()
-    }
-
     fn create_job_cmd(
         &self,
         SchedulerJobConfig {
@@ -94,10 +91,45 @@ impl Scheduler for JobScheduler {
                 .and_then(|cap| cap.get(1).map(|m| m.as_str().to_string())),
         }
     }
+
+    fn job_status_cmd(&self, job_id: &str) -> String {
+        format!(r"oarstat -j {job_id} -f | grep -e exit_code -e 'state\s*='")
+    }
+
+    fn parse_job_status(&self, response: &str) -> Option<JobStatus> {
+        if response.contains("Running") {
+            Some(JobStatus::Running)
+        } else if response.contains("Waiting") {
+            Some(JobStatus::Queued)
+        } else if response.contains("Terminated") {
+            if let Some(exit_code) = OARSUB_EXIT_CODE_RE.captures(response) {
+                let exit_code = exit_code[1].parse::<i32>().expect("valid integer");
+
+                if exit_code == 0 {
+                    Some(JobStatus::Finished)
+                } else {
+                    Some(JobStatus::Failed)
+                }
+            } else {
+                Some(JobStatus::Finished)
+            }
+        } else if response.contains("Error") {
+            Some(JobStatus::SchedulerError)
+        } else if response.contains("Failed") {
+            Some(JobStatus::Failed)
+        } else if response.contains("Finishing") {
+            Some(JobStatus::Finishing)
+        } else {
+            None
+        }
+    }
 }
 
 static OARSUB_PARSE_ID_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"OAR_JOB_ID=?\s*(\d*)").unwrap());
+
+static OARSUB_EXIT_CODE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"exit_code\s*=\s*(\d*)").unwrap());
 
 #[cfg(test)]
 mod tests {
@@ -129,5 +161,18 @@ OAR_JOB_ID=5548155
 # Interactive mode: waiting...";
 
         assert_eq!(Some("5548155"), Oarsub.parse_job_id(response).as_deref());
+    }
+
+    #[test]
+    fn oarsub_job_status() {
+        let response = "5636368: Waiting";
+        assert_eq!(Some(JobStatus::Queued), Oarsub.parse_job_status(response));
+    }
+
+    #[test]
+    fn oarsub_failed_job_status() {
+        let response = "state = Terminated
+    exit_code = 512 (2,0,0)";
+        assert_eq!(Some(JobStatus::Failed), Oarsub.parse_job_status(response));
     }
 }

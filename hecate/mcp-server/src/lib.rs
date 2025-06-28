@@ -2,10 +2,11 @@ use chrono::Utc;
 use entity::job::{self, JobStatus};
 use entity::job::{Entity as Job, JobScheduler};
 use hecate::codegen::input_schema::{CodeGenRes, InputSchema};
+use log::{debug, error, info};
 use migration::{ExprTrait, Migrator, MigratorTrait};
 mod executor;
 mod scheduler;
-mod workflow;
+pub mod workflow;
 use rmcp::{
     Error, RoleServer, ServiceExt,
     model::{
@@ -18,10 +19,13 @@ use rmcp::{
 };
 use sea_orm::prelude::DateTimeUtc;
 use sea_orm::{
+    ActiveEnum, ActiveModelBehavior, Condition, DbBackend, DerivePartialModel, FromQueryResult,
+    IntoActiveModel, QueryTrait,
+};
+use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait, IntoSimpleExpr,
     QueryFilter,
 };
-use sea_orm::{DerivePartialModel, FromQueryResult};
 use serde::Serialize;
 
 use crate::executor::ExecutorError;
@@ -56,7 +60,11 @@ impl<E: StdError> From<ExecutorError<E>> for rmcp::Error {
 
 #[tool(tool_box)]
 impl HecateSimulator {
+    pub fn db_connection(&self) -> DatabaseConnection {
+        self.db.clone()
+    }
     pub async fn new() -> anyhow::Result<Self> {
+        info!("Initiating Hecate Job Manager");
         let mut dir = dirs::home_dir().ok_or_else(|| HecateError::NoHomeDir)?;
         dir.push(".hecate");
         std::fs::create_dir_all(&dir)?;
@@ -65,6 +73,83 @@ impl HecateSimulator {
         };
 
         Migrator::up(&res.db, None).await?;
+
+        // Identify jobs that are directly managed by Hecate, without a scheduler, that were
+        // interrupted during the last execution, and tag them as such.
+        let db = res.db.clone();
+        tokio::spawn(async move {
+            let mut job = job::ActiveModel::new();
+            job.status = Set(JobStatus::Interupted);
+            let update_res = Job::update_many().set(job).filter(
+                Condition::all()
+                    .add(
+                        job::Column::Status
+                            .into_simple_expr()
+                            .in_tuples(JobStatus::unfinished_values()),
+                    )
+                    .add(job::Column::Scheduler.into_simple_expr().is_null()),
+            );
+
+            let update_res = update_res.exec(&db).await;
+            match update_res {
+                Ok(res) => {
+                    info!("Identified {} new interruped jobs", res.rows_affected);
+                }
+                Err(e) => {
+                    error!("Failed to identify interrupted jobs: {}", e);
+                }
+            }
+        });
+
+        // Start status poller for scheduler jobs
+        let db = res.db.clone();
+        tokio::spawn(async move {
+            let unfinished_scheduler_jobs = Job::find().filter(
+                Condition::all()
+                    .add(
+                        job::Column::Status
+                            .into_simple_expr()
+                            .in_tuples(JobStatus::unfinished_values()),
+                    )
+                    .add(job::Column::Scheduler.into_simple_expr().is_not_null()),
+            );
+
+            let unfinished_scheduler_jobs = unfinished_scheduler_jobs.all(&db).await;
+
+            match &unfinished_scheduler_jobs {
+                Ok(jobs) => {
+                    info!("Identified {} unfinished scheduler jobs", jobs.len());
+                }
+                Err(e) => {
+                    error!("Failed to identify unfinished scheduler jobs: {}", e);
+                    return;
+                }
+            }
+            let unfinished_scheduler_jobs = unfinished_scheduler_jobs.unwrap();
+
+            if unfinished_scheduler_jobs.is_empty() {
+                return;
+            }
+            info!(
+                "Starting status pollers for {} unfinished scheduler jobs",
+                unfinished_scheduler_jobs.len()
+            );
+
+            for job in unfinished_scheduler_jobs {
+                let db = db.clone();
+                tokio::spawn(async move {
+                    let success = workflow::update_job_status(job.id, db).await;
+                    match success {
+                        Ok(_) => {
+                            info!("Updated status for job {}", job.id);
+                        }
+                        Err(e) => {
+                            error!("Failed to update status for job {}: {}", job.id, e);
+                        }
+                    }
+                });
+            }
+        });
 
         Ok(res)
     }
@@ -150,6 +235,41 @@ impl HecateSimulator {
         Ok(CallToolResult::success(vec![Content::text(format!(
             "id: {}",
             job_id
+        ))]))
+    }
+
+    #[tool(
+        description = "Cancel a simulation job. For example, this can be useful when one wants to make some changes to the input schema, and then recreate a new job with the updated configuration."
+    )]
+    async fn cancel_job(&self, #[tool(param)] job_id: i64) -> Result<CallToolResult, Error> {
+        let job = Job::find_by_id(job_id)
+            .one(&self.db)
+            .await
+            .map_err(|e| Error::internal_error(e.to_string(), None))?;
+        if job.is_none() {
+            return Err(Error::invalid_request("job not found", None));
+        }
+        let job = job.unwrap();
+
+        if job.status.is_done() {
+            return Err(Error::invalid_request(
+                "job already reached completion",
+                Some(
+                    serde_json::to_value(job.status).expect("all status variants are serializable"),
+                ),
+            ));
+        }
+        if job.status == JobStatus::Canceled {
+            return Err(Error::invalid_request("job already canceled", None));
+        }
+
+        let mut job: job::ActiveModel = job.into();
+        job.status = Set(JobStatus::Canceled);
+        job.update(&self.db)
+            .await
+            .map_err(|e| Error::internal_error(e.to_string(), None))?;
+        Ok(CallToolResult::success(vec![Content::text(&format!(
+            "cancelled job {job_id}"
         ))]))
     }
 

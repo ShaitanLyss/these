@@ -1,14 +1,15 @@
 use std::path::PathBuf;
 
+use entity::Job;
 use entity::job::{self, JobStatus};
 use log::{debug, error, info};
-use sea_orm::ActiveModelTrait;
 use sea_orm::ActiveValue::Set;
 use sea_orm::DatabaseConnection;
+use sea_orm::{ActiveModelTrait, EntityTrait};
 
-use crate::StdError;
 use crate::executor::{Executor, ExecutorError};
 use crate::scheduler::{Scheduler, SchedulerJobConfig};
+use crate::{StdError, executor};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -116,4 +117,69 @@ pub async fn run_job<Exec: Executor>(
     job.update(&db).await?;
 
     Ok(())
+}
+
+#[derive(Debug, Error)]
+pub enum JobError {
+    #[error("job {0} not found")]
+    JobNotFound(i64),
+    #[error("invalid job config: {0}")]
+    InvalidJobConfig(String),
+    #[error("database error")]
+    DatabaseError(#[from] sea_orm::DbErr),
+    #[error("executor error: {0}")]
+    ExecutorError(String),
+    #[error("TODO")]
+    NotImplemented,
+}
+
+impl<E: StdError> From<ExecutorError<E>> for JobError {
+    fn from(value: ExecutorError<E>) -> Self {
+        JobError::ExecutorError(value.to_string())
+    }
+}
+
+pub async fn update_job_status(job_id: i64, db: DatabaseConnection) -> Result<JobStatus, JobError> {
+    let job = Job::find_by_id(job_id)
+        .one(&db)
+        .await?
+        .ok_or_else(|| JobError::JobNotFound(job_id))?;
+
+    let mut status = job.status;
+    let mut new_status: Option<JobStatus> = None;
+    let job::Model {
+        scheduler,
+        remote_job_id,
+        cluster_access_name,
+        ..
+    } = &job;
+    if let Some(cluster_access_name) = cluster_access_name {
+        if scheduler.is_none() || remote_job_id.is_none() {
+            return Err(JobError::InvalidJobConfig(
+                "missing scheduler or remote_job_id for fetching job status".into(),
+            ));
+        }
+        let scheduler = scheduler.as_ref().unwrap();
+        let remote_job_id = remote_job_id.as_ref().unwrap();
+
+        let executor = executor::SshExecutor::new(cluster_access_name)
+            .await
+            .map_err(|e| ExecutorError::CreationFailed(e))?;
+        let status_cmd = scheduler.job_status_cmd(remote_job_id);
+        let response = executor.execute(&status_cmd).await?;
+        new_status = scheduler.parse_job_status(&response);
+    } else {
+        // let executor = executor::LocalExecutor::new();
+        return Err(JobError::NotImplemented);
+    }
+    if let Some(new_status) = new_status
+        && new_status != status
+    {
+        let mut job: job::ActiveModel = job.into();
+        job.status = Set(new_status);
+        job.update(&db).await?;
+        status = new_status;
+    }
+
+    Ok(status)
 }

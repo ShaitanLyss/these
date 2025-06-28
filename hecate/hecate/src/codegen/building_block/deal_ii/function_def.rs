@@ -4,8 +4,17 @@ use crate::{
 };
 
 pub(super) fn function_def_to_deal_ii_code(function_def: &FunctionDef) -> String {
+    let substs = &[
+        [Symbol::new_box("t"), Symbol::new_box("get_time()")],
+        [Symbol::new_box("x"), Symbol::new_box("point[0]")],
+        [Symbol::new_box("y"), Symbol::new_box("point[1]")],
+        [Symbol::new_box("z"), Symbol::new_box("point[2]")],
+    ];
     match function_def {
-        FunctionDef::Expr(expr) => format!("return {};", expr.to_cpp()),
+        FunctionDef::Expr(expr) => {
+            let expr_cpp = expr.subs(substs).to_cpp();
+            format!("return {expr_cpp};")
+        }
         FunctionDef::Conditioned(conditionedFunctions) => {
             let mut res: Vec<String> = Vec::with_capacity(conditionedFunctions.len());
 
@@ -36,14 +45,7 @@ pub(super) fn function_def_to_deal_ii_code(function_def: &FunctionDef) -> String
                         }
                     }
                 }
-                let expr_cpp = expr
-                    .subs(&[
-                        [Symbol::new_box("t"), Symbol::new_box("get_time()")],
-                        [Symbol::new_box("x"), Symbol::new_box("point[0]")],
-                        [Symbol::new_box("y"), Symbol::new_box("point[1]")],
-                        [Symbol::new_box("z"), Symbol::new_box("point[2]")],
-                    ])
-                    .to_cpp();
+                let expr_cpp = expr.subs(substs).to_cpp();
                 if conditions.is_empty() {
                     res.push(format!("else {{\n  return {expr_cpp};\n}}"));
                     return res.join("\n");

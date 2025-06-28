@@ -3,6 +3,7 @@ name = "hecate-mcp-server"
 version = "0.1.0"
 edition = "2024"
 license-file.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 hecate = { path = "../hecate" }

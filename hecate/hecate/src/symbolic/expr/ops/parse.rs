@@ -185,31 +185,48 @@ static D_DVAR_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^[d∂]\^?([\d⁰¹²³⁴⁵⁶⁷⁸⁹]*)\s*[\/_]\s*[d∂]\(?(\w+?)\)?\^?([\d⁰¹²³⁴⁵⁶⁷⁸]*)$").unwrap()
 });
 
+static DNVAR_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[d∂]\^?(?:([\d⁰¹²³⁴⁵⁶⁷⁸⁹]+))?([A-Za-z_])$").unwrap());
+
+static SUB_DNVAR: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[d∂]\^?(?:([\d⁰¹²³⁴⁵⁶⁷⁸⁹]+))?([A-Za-z_])\((.*)\)$").unwrap());
+
 pub fn parse_function(name: &str, args: &str) -> Result<Box<dyn Expr>, ParseFunctionError> {
     let args: Vec<_> = args.split(",").map(|arg| arg.trim()).collect();
 
     // Handle differential operators (dx(...), dt(...), etc.)
-    if name.len() == 2 && name.starts_with("d") {
-        let var = name.chars().last().unwrap();
+    if let Some(captures) = DNVAR_RE.captures(name) {
+        let var = &captures[2];
+        let order = captures.get(1).map_or("1", |o| o.as_str());
+        let order = order.parse().map_err(|e| {
+            ParseFunctionError::InvalidDiff(
+                name.to_string(),
+                ParseDiffError::InvalidNumOrderFormat(order.to_string(), e),
+            )
+        })?;
 
         let mut var_orders: IndexMap<Symbol, usize> = IndexMap::new();
         var_orders.insert(
             Symbol {
                 name: var.to_string(),
             },
-            1,
+            order,
         );
 
         let mut f = args[0].to_string();
 
-        while let Some(captures) = Regex::new(&format!(r"^d([A-Za-z])\((.*)\)$"))
-            .expect("valid regex")
-            .captures(&f)
-        {
-            let var = captures[1].to_string();
-            f = captures[2].to_string();
+        while let Some(captures) = SUB_DNVAR.captures(&f) {
+            let var = captures[2].to_string();
+            let var_order = captures.get(1).map_or("1", |o| o.as_str());
+            let var_order: usize = var_order.parse().map_err(|e| {
+                ParseFunctionError::InvalidDiff(
+                    name.to_string(),
+                    ParseDiffError::InvalidNumOrderFormat(var_order.to_string(), e),
+                )
+            })?;
+            f = captures[3].to_string();
             let order = var_orders.entry(Symbol { name: var }).or_insert(0);
-            *order += 1;
+            *order += var_order;
         }
 
         return Ok(Box::new(Diff::new_v2(
@@ -440,11 +457,33 @@ impl FromStr for Rational {
     }
 }
 
+/// Checks if brackets are valid.
+///
+/// Returns true if the opening brackets are matched with the appropriate closing ones.
+pub fn are_brackets_valid(s: &str) -> bool {
+    let mut stack: Vec<usize> = Vec::new();
+
+    for c in s.chars() {
+        if let Some(i) = openers.iter().position(|opener| opener == &c) {
+            stack.push(i);
+        } else if let Some(i) = closers.iter().position(|closer| closer == &c) {
+            if stack.pop() != Some(i) {
+                return false;
+            }
+        }
+    }
+    stack.is_empty()
+}
+
 pub fn parse_expr(s: &str) -> Result<Box<dyn Expr>, ParseExprError> {
     let s = s.trim();
     Ok(if s.split("=").collect::<Vec<_>>().len() >= 2 {
         Box::new(s.parse::<Equation>()?)
-    } else if let Some(captured_func) = func_re.captures(s) {
+    }
+    // Functions
+    else if let Some(captured_func) = func_re.captures(s)
+        && are_brackets_valid(&captured_func[2])
+    {
         return Ok(parse_function(&captured_func[1], &captured_func[2])?);
     }
     // Integer
@@ -772,5 +811,24 @@ mod tests {
     fn parse_float() {
         let res = parse_expr("0.5").unwrap();
         assert_eq!(res, Rational::new_box(1, 2));
+    }
+
+    #[test]
+    fn parse_d2t_syntax() {
+        let res = parse_expr("d2t(u)").unwrap();
+        let [u] = symbols!("u");
+        let expected = u.diff("t", 2);
+        assert_eq!(res, expected)
+    }
+
+    #[test]
+    fn parse_claud_wave_eq() {
+        let res = parse_expr("d2t(u) = c^2 * (d2x(u) + d2y(u))").unwrap();
+        let [u, c] = symbols!("u", "c");
+        let expected = Equation::new_box(
+            u.diff("t", 2),
+            c.ipow(2) * (u.diff("x", 2) + u.diff("y", 2)),
+        );
+        assert_eq!(res, expected)
     }
 }

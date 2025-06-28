@@ -38,6 +38,9 @@ dyn_clone::clone_trait_object!(Mesh);
 #[serde(default)]
 pub struct HyperCubeMesh {
     pub range: Range<Length>,
+    /// Number of subdivisions
+    /// Set a reasonable number because each subdivision multiplies by 2
+    /// the number of cells (50 means 2^50 cells)
     pub subdivisions: usize,
     pub show_info: bool,
 }

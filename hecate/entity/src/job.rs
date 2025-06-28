@@ -52,18 +52,71 @@ pub enum JobScheduler {
     // IBMLsf,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize)]
+/// # Job Status
+/// The status of a job.
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Copy,
+    Deserialize,
+    JsonSchema,
+)]
 #[sea_orm(
     rs_type = "String",
     db_type = "String(StringLen::None)",
-    rename_all = "camelCase"
+    rename_all = "snake_case"
 )]
 #[serde(rename_all = "snake_case")]
 pub enum JobStatus {
+    /// The job has been created and stored in the database.
     Created,
+    /// The job is in the queue, waiting to be executed.
     Queued,
+    /// The job is running.
     Running,
+    /// The job has finished successfully.
     Finished,
+    /// The job couldn't finish because of external interruption.
+    Interupted,
+    /// The job failed to be processed by the scheduler.
+    SchedulerError,
+    /// The job failed.
+    Failed,
+    /// The job was canceled.
+    Canceled,
+    /// The job is finishing, resources are being released.
+    Finishing,
+}
+
+impl JobStatus {
+    pub fn unfinished_variants() -> &'static [JobStatus] {
+        &[
+            JobStatus::Created,
+            JobStatus::Queued,
+            JobStatus::Running,
+            JobStatus::Finishing,
+        ]
+    }
+
+    pub fn unfinished_values() -> impl Iterator<Item = String> {
+        JobStatus::unfinished_variants()
+            .iter()
+            .map(|v| v.to_value())
+    }
+    pub fn is_done(&self) -> bool {
+        match self {
+            JobStatus::Finished
+            | JobStatus::Failed
+            | JobStatus::Canceled
+            | JobStatus::SchedulerError => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
