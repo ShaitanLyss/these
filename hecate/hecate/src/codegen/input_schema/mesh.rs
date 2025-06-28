@@ -38,10 +38,10 @@ dyn_clone::clone_trait_object!(Mesh);
 #[serde(default)]
 pub struct HyperCubeMesh {
     pub range: Range<Length>,
-    /// Number of subdivisions
-    /// Set a reasonable number because each subdivision multiplies by 2
-    /// the number of cells (50 means 2^50 cells)
-    pub subdivisions: usize,
+
+    /// # Resolution
+    /// The size of each cell.
+    pub resolution: Length,
     pub show_info: bool,
 }
 
@@ -49,7 +49,7 @@ impl Default for HyperCubeMesh {
     fn default() -> Self {
         HyperCubeMesh {
             range: "0 m .. 1 m".parse().unwrap(),
-            subdivisions: 5,
+            resolution: "0.03125 m".parse().expect("valid length"),
             show_info: false,
         }
     }

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::ops::Div;
 
 use itertools::Itertools;
 use regex::{Captures, Regex};
@@ -35,7 +36,7 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
     factory.add_mesh("hyper_cube", &|name, mesh, _| {
         let HyperCubeMesh {
             range,
-            subdivisions,
+            resolution,
             show_info,
         }: &HyperCubeMesh = mesh
             .as_any()
@@ -45,6 +46,7 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
         let start = range.start.value;
         let end = range.end.value;
         let mut hyper_cube = BuildingBlock::new();
+        let subdivisions = (end - start).div(resolution.value).abs().log2().ceil() as u64;
 
         hyper_cube.add_includes(&["deal.II/grid/grid_generator.h", "deal.II/grid/tria.h"]);
         hyper_cube.data.push(format!("Triangulation<dim> {name}"));
