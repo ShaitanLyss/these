@@ -153,7 +153,7 @@ impl Pow {
                 let mut r = r.clone();
                 if exponent.is_negative_number() {
                     r.invert();
-                    exponent = match dbg!(&exponent).known_expr() {
+                    exponent = match exponent.known_expr() {
                         KnownExpr::Integer(i) => Box::new(-i),
                         KnownExpr::Rational(r) => Box::new(-r),
                         _ => panic!("{:?}", exponent.clone_box()),

@@ -392,4 +392,6 @@ pub enum ExprCodeGenError {
     MatResult,
     #[error("operations resulted in a vector when a matrix was expected")]
     VecResult,
+    #[error("unsupported equation : {reason}\nequation: {equation}")]
+    UnsupportedEquation { reason: String, equation: Equation },
 }

@@ -3,7 +3,8 @@ use crate::codegen::building_block::{ApplyBoundaryConditionConfig, InitialCondit
 use crate::codegen::input_schema::quantity::{NO_REF_QUANTITY_PATTERN, QuantityEnum};
 use crate::codegen::input_schema::unit::format_unit;
 use crate::ops::ParseExprError;
-use derive_more::{Deref, DerefMut, FromStr, IntoIterator};
+use crate::system::SystemError;
+use derive_more::{Deref, DerefMut, From, FromStr, IntoIterator};
 use indexmap::IndexMap as BaseIndexMap;
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -13,6 +14,7 @@ use schemars::{JsonSchema, json_schema};
 use serde::de::Error;
 use serde::de::Visitor;
 use serde::ser::SerializeMap;
+use serde_json::value::Index;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::fs::{self, File};
@@ -43,7 +45,8 @@ use crate::{
     Equation, Expr, Func, Symbol, System, codegen::building_block::deal_ii_factory, symbol,
 };
 
-#[derive(Deref, DerefMut, Deserialize, Serialize, Clone, Debug, IntoIterator)]
+#[derive(Deref, DerefMut, Deserialize, Serialize, Clone, Debug, IntoIterator, From)]
+#[from(forward)]
 pub struct IndexMap<K, V>(#[into_iterator(owned, ref, ref_mut)] BaseIndexMap<K, V>)
 where
     K: Eq + Hash;
@@ -680,6 +683,8 @@ pub enum CodeGenError {
     MissingDerivative(String),
     #[error("invalid expression for function expression: {0}")]
     InvalidFunctionExpression(ParseExprError),
+    #[error("failed to simplify system before code generation")]
+    SystemSimplificationFailed(#[from] SystemError),
 }
 
 lazy_static! {
@@ -812,11 +817,11 @@ impl InputSchema {
         let gen_conf = &self.gen_conf;
         let factory = deal_ii_factory();
         let mut blocks = BuildingBlockCollector::new(&factory, gen_conf);
-        blocks.newline();
-        blocks.comment("Parameters");
-        for (name, quantity) in &self.parameters {
-            blocks.create(name, Block::Parameter(quantity.si_value()))?;
-        }
+        // blocks.newline();
+        // blocks.comment("Parameters");
+        // for (name, quantity) in &self.parameters {
+        //     blocks.create(name, Block::Parameter(quantity.si_value()))?;
+        // }
         blocks.newline();
 
         let Solve {
@@ -885,7 +890,7 @@ impl InputSchema {
         let system = System::new(unknowns, knowns, equations.iter())
             .to_first_order_in_time()
             .time_discretized()
-            .simplified()
+            .simplified()?
             .matrixify()
             .to_crank_nikolson()
             .to_constant_mesh()
@@ -1020,16 +1025,17 @@ impl InputSchema {
                 // Retrive initial and boundary conditions for the unknown
                 let unknown_cpp = unknown.to_cpp();
                 let mat_name = format!("matrix_{unknown_cpp}");
-                let unknown_config = if unknown_cpp == "v" {
+                let unknown_config = if let Some(captures) = UNKNOWN_DT_RE.captures(&unknown_cpp) {
                     self.unknowns
-                        .get("u")
-                        .ok_or_else(|| CodeGenError::UnknownUnknown("u".to_string()))?
+                        .get(&captures[1])
+                        .ok_or_else(|| CodeGenError::UnknownUnknown(captures[1].to_string()))?
                         .derivative
                         .as_ref()
-                        .ok_or_else(|| CodeGenError::MissingDerivative("u".to_string()))?
+                        .ok_or_else(|| CodeGenError::MissingDerivative(captures[1].to_string()))?
                 } else {
                     self.unknowns
                         .get(&unknown_cpp)
+                        .or_else(|| self.unknowns.get(&unknown_cpp.to_uppercase()))
                         .ok_or_else(|| CodeGenError::UnknownUnknown(unknown_cpp.to_string()))?
                 };
 
@@ -1124,10 +1130,20 @@ impl InputSchema {
         context.insert("dimension", &dimension);
         context.insert("mpi", &self.gen_conf.mpi);
 
+        let parameters: indexmap::IndexMap<&String, String> = self
+            .parameters
+            .iter()
+            .map(|(name, value)| (name, format!("{:e}", value.si_value())))
+            .collect();
+        context.insert("parameters", &parameters);
+
         // Fill the template with the context
         Ok(TEMPLATES.render("cpp_source", &context)?)
     }
 }
+
+static UNKNOWN_DT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new("^dt_(.+)").expect("valid regex"));
 
 #[derive(Clone)]
 struct BuildingBlockCollector<'fa> {

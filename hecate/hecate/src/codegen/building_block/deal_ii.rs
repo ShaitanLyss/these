@@ -163,7 +163,7 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
 
         ]);
         matrix.push_setup([
-                    format!("MatrixCreator::create_{kind}_matrix({dof_handler}, QGauss<2>({element}.degree + 1), {name})")
+                    format!("MatrixCreator::create_{kind}_matrix({dof_handler}, QGauss<dim>({element}.degree + 1), {name})")
         ]);
         Ok(matrix)
     });
@@ -254,10 +254,11 @@ void Sim::{name}() {{
 
     factory.set_parameter(&|name, value, _| {
         let mut block = BuildingBlock::new();
+        let cpp_name = name.to_lowercase();
 
         block
             .main
-            .push(format!("const data_type {name} = {value};"));
+            .push(format!("const data_type {cpp_name} = {value};"));
 
         Ok(block)
     });
@@ -375,11 +376,17 @@ fn equation_to_deall_ii_setup_code(
     let lhs = equation.lhs.expand().factor(&[unknown]);
     let lhs = lhs.as_mul();
     if lhs.is_none() {
-        panic!("lhs of equation must be a multiplication after factorization by the unknown");
+        Err(ExprCodeGenError::UnsupportedEquation {
+            reason: "internal error: lhs is not a multiplication".into(),
+            equation: equation.clone(),
+        })?;
     }
     let lhs = lhs.unwrap();
     if lhs.operands.len() != 2 {
-        panic!("lhs of factorized equation must be a multiplication with two operands");
+        Err(ExprCodeGenError::UnsupportedEquation {
+            reason: "internal error: lhs is not a multiplication with two operands".into(),
+            equation: equation.clone(),
+        })?;
     }
     let system = mat_code_gen(
         &format!("matrix_{}", unknown.to_cpp()),

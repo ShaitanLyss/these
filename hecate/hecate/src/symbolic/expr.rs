@@ -332,6 +332,10 @@ pub trait Expr: Arg + Sync + Send {
     fn as_arg(&self) -> Box<dyn Arg> {
         self.clone_box().into()
     }
+
+    fn as_function(&self) -> Option<&Func> {
+        None
+    }
     fn equals(&self, other: &dyn Expr) -> bool {
         self.srepr() == other.srepr()
     }
@@ -584,7 +588,7 @@ pub trait Expr: Arg + Sync + Send {
     }
 }
 
-impl std::hash::Hash for Box<dyn Expr> {
+impl std::hash::Hash for dyn Expr {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.srepr().hash(state);
     }
@@ -823,11 +827,6 @@ impl fmt::Debug for &dyn Expr {
 
 impl std::cmp::Eq for &dyn Expr {}
 
-impl Hash for &dyn Expr {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.srepr().hash(state);
-    }
-}
 // impl<E: Expr> Expr for ExprWrapper<'_, E> {
 //     fn args(&self) -> Vec<Box<dyn Arg>> {
 //         todo!()

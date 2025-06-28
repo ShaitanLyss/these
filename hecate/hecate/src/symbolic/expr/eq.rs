@@ -1,5 +1,7 @@
 use std::fmt;
 
+use itertools::Itertools;
+use log::{debug, info};
 use schemars::{JsonSchema, json_schema};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -10,6 +12,12 @@ use super::{ops::ParseExprError, *};
 pub struct Equation {
     pub lhs: Box<dyn Expr>,
     pub rhs: Box<dyn Expr>,
+}
+
+impl fmt::Display for Equation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} = {}", self.lhs.str(), self.rhs.str())
+    }
 }
 
 impl Serialize for Equation {
@@ -137,16 +145,37 @@ impl std::cmp::PartialEq for Equation {
     }
 }
 
+#[derive(Error, Debug)]
+#[error("failed to solve equation {equation} for unknowns {unknowns} : {reason}")]
+pub struct SolvingError {
+    unknowns: String,
+    equation: String,
+    reason: String,
+}
+
 impl Equation {
     // - Expand all terms containing solved symbols
     // - Move them to the left
     // - Others to the right
     // - Factorize
     // - Divide by factor of seeked symbol
-    pub fn solve<'a, S: IntoIterator<Item = &'a dyn Expr>>(&self, exprs: S) -> Equation {
+    pub fn solve<'a, S: IntoIterator<Item = &'a dyn Expr>>(
+        &self,
+        exprs: S,
+    ) -> Result<Equation, SolvingError> {
         let eq = (self.expand()).as_eq().expect("Should remain an eqation");
 
         let symbols: Vec<_> = exprs.into_iter().collect();
+        debug!("solving equation {} for unknowns {:?}", self.str(), symbols);
+        debug!("expanded: {}", eq.str());
+
+        if symbols.is_empty() {
+            Err(SolvingError {
+                unknowns: "".to_string(),
+                equation: eq.str(),
+                reason: "no unknowns given".into(),
+            })?
+        }
 
         let move_right: Vec<_> = eq
             .lhs
@@ -163,19 +192,30 @@ impl Equation {
         // x + y = 2x + 2y -> -x = y
 
         let mut res = eq.clone();
+        debug!("Equation: {}", res.str());
+        // dbg!(&res);
+        // dbg!(&move_right);
+        // dbg!(&move_left);
 
-        for t in move_right.iter().chain(move_left.iter()) {
-            res -= *t;
+        for t in move_right {
+            debug!("Moving {t} to the right");
+            res -= t;
+            debug!("Equation: {}", res.str());
+        }
+
+        for t in move_left {
+            debug!("Moving {t} to the left");
+            res -= t;
         }
 
         let (coeff, _) = (&res.lhs).get_coeff();
 
         if coeff.is_zero() {
-            panic!(
-                "Solving failed\nbase_eq:\n{}\nres:\n{}",
-                eq.str(),
-                res.str()
-            )
+            Err(SolvingError {
+                unknowns: symbols.iter().map(|e| e.str()).join(", "),
+                equation: res.str(),
+                reason: "failed to get unknown coefficient".into(),
+            })?
         }
 
         if !coeff.is_one() {
@@ -196,7 +236,9 @@ impl Equation {
         };
         res /= symbols_coeff.get_ref();
 
-        res
+        debug!("solved equation: {}", res.str());
+
+        Ok(res)
     }
 }
 
@@ -228,7 +270,9 @@ mod tests {
     fn test_solve_solved() {
         let x = &Symbol::new("x");
 
-        let expr = Equation::new(x, &Integer::zero()).solve([x.get_ref()]);
+        let expr = Equation::new(x, &Integer::zero())
+            .solve([x.get_ref()])
+            .expect("solved equation");
         let expected = "Eq(Symbol(x), Integer(0))";
 
         assert_eq!(expr.srepr(), expected)
@@ -238,7 +282,9 @@ mod tests {
     fn test_solve_basic() {
         let x = &Symbol::new("x");
 
-        let expr = Equation::new(&Integer::zero(), x).solve([x.get_ref()]);
+        let expr = Equation::new(&Integer::zero(), x)
+            .solve([x.get_ref()])
+            .expect("solved equation");
         let expected = "Eq(Symbol(x), Integer(0))";
 
         assert_eq!(expr.srepr(), expected)
@@ -253,7 +299,10 @@ mod tests {
         let expr = Equation::new(y, &*(two * x));
         let expected = Equation::new(x, &*(y / two));
 
-        assert_eq!(expr.solve([x.get_ref()]), expected)
+        assert_eq!(
+            expr.solve([x.get_ref()]).expect("solved equation"),
+            expected
+        )
     }
 
     #[test]
@@ -265,6 +314,9 @@ mod tests {
         let expr = Equation::new(y, &*(z * x));
         let expected = Equation::new(x, &*(y / z));
 
-        assert_eq!(expr.solve([x.get_ref()]), expected)
+        assert_eq!(
+            expr.solve([x.get_ref()]).expect("solved equation"),
+            expected
+        )
     }
 }

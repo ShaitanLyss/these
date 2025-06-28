@@ -2,6 +2,10 @@ use anyhow::Result;
 use hecate::InputSchema;
 
 fn main() -> Result<()> {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .parse_default_env()
+        .init();
     let schema: InputSchema =
         serde_yaml::from_str(include_str!("../input-schemas/heat-eq.hecate.yml"))?;
 

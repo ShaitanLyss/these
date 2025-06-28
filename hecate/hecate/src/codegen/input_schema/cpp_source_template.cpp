@@ -11,6 +11,11 @@
 const int dim = {{ dimension }};
 using data_type = double;
 
+
+{%if parameters %}// Parameters{% endif %}
+{% for name, value in parameters %}const data_type {{ name | lower }} = {{ value }};
+{% endfor %}
+
 using namespace dealii;
 using namespace Kokkos::numbers;
 

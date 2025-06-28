@@ -1,4 +1,7 @@
+use std::collections::HashSet;
+
 use itertools::Itertools;
+use log::{debug, info};
 
 use super::*;
 use crate::symbol;
@@ -50,6 +53,12 @@ impl std::fmt::Display for System {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum SystemError {
+    #[error("failed to simplify system")]
+    SimplificationFailed(#[source] SolvingError),
+}
+
 impl System {
     pub fn new<
         'a,
@@ -70,22 +79,43 @@ impl System {
     }
 
     pub fn to_first_order_in_time(&self) -> Self {
+        let mut unknowns_with_snd_time_derivatives = HashSet::new();
+        for unknown in &self.unknowns {
+            let snd_time_derivative = unknown.diff("t", 2);
+            for equation in &self.equations {
+                if equation.has(snd_time_derivative.get_ref()) {
+                    unknowns_with_snd_time_derivatives.insert(unknown);
+                    info!(
+                        "Unknown `{}` has a second order time derivative",
+                        unknown.str()
+                    );
+                    break;
+                }
+            }
+        }
         let mut unknowns = self.unknowns.clone();
-        let u = Func::new("u", []);
-        let v = Func::new("v", []);
+        let mut substitutions = vec![];
+        let mut equations =
+            Vec::with_capacity(self.equations.len() + unknowns_with_snd_time_derivatives.len());
+        if !unknowns_with_snd_time_derivatives.is_empty() {
+            info!("Converting system to first order in time");
+        }
+        for unknown in unknowns_with_snd_time_derivatives {
+            let fst_time_derivative = Func::new(&format!("dt_{}", unknown.name), []);
 
-        let mut equations: Vec<_> = self
-            .equations
-            .iter()
-            .map(|e| {
-                e.subs(&vec![[u.diff("t", 2), v.diff("t", 1)]])
-                    .as_eq()
-                    .unwrap()
-            })
-            .collect();
+            substitutions.push([unknown.diff("t", 2), fst_time_derivative.diff("t", 1)]);
+            equations.push(Equation {
+                lhs: fst_time_derivative.clone_box(),
+                rhs: unknown.diff("t", 1),
+            });
+            unknowns.push(fst_time_derivative);
+        }
 
-        equations.insert(0, Equation::new(&v, &*u.diff("t", 1)));
-        unknowns.push(v);
+        equations.extend(
+            self.equations
+                .iter()
+                .map(|e| e.subs(&substitutions).as_eq().expect("equation")),
+        );
 
         System {
             unknowns,
@@ -146,28 +176,53 @@ impl System {
         }
     }
 
-    pub fn simplified(&self) -> Self {
+    pub fn simplified(&self) -> Result<Self, SystemError> {
+        info!("Simplifying system so that each equation has one unknown");
         let mut equations = self.equations.clone();
-        // let equations = self.equations.iter().map(|e| e.expand().as_eq().unwrap()).collect();
+        let mut unsolved_unknowns: HashSet<&Func> = HashSet::from_iter(self.unknowns.iter());
 
-        let v_curr = &Func::new("v^n", []);
+        for i in (0..self.equations.len()).rev() {
+            for unknown in self.unknowns.iter().rev() {
+                if !unsolved_unknowns.contains(unknown) {
+                    continue;
+                }
+                if equations[i].has(unknown.get_ref()) {
+                    info!("Solving equation {} for {}", i, unknown.str());
+                    let solved_equation = equations[i]
+                        .solve([unknown.get_ref()])
+                        .map_err(|e| SystemError::SimplificationFailed(e))?
+                        .expand()
+                        .as_eq()
+                        .unwrap();
+                    equations[i] = solved_equation;
+                    unsolved_unknowns.remove(unknown);
+                    if unsolved_unknowns.len() == 0 {
+                        break;
+                    }
 
-        equations[1] = equations[1]
-            .solve([v_curr.get_ref()])
-            .expand()
-            .as_eq()
-            .unwrap();
-        equations[0] = equations[0]
-            .subs(&vec![[v_curr.clone_box(), equations[1].rhs.clone_box()]])
-            .as_eq()
-            .expect("should remain an eq");
-        equations[0] = equations[0]
-            .solve([Func::new("u^n", []).get_ref()])
-            .expand()
-            .as_eq()
-            .unwrap();
+                    let substitution =
+                        vec![[equations[i].lhs.clone_box(), equations[i].rhs.clone_box()]];
+                    debug!("Equation {} is now {}", i, equations[i].str());
+                    debug!("substitution: {:?}", substitution);
 
-        self.with_equations(equations)
+                    for j in 0..i {
+                        info!(
+                            "Substituting {} in equation {} using equation {}",
+                            equations[i].lhs.str(),
+                            j,
+                            i
+                        );
+                        equations[j] = equations[j].subs(&substitution).as_eq().expect("equation");
+                        equations[j] = equations[j]
+                            .solve(unsolved_unknowns.iter().map(|f| f.get_ref()))
+                            .map_err(|e| SystemError::SimplificationFailed(e))?;
+                    }
+                    break;
+                }
+            }
+        }
+
+        Ok(self.with_equations(equations))
     }
 
     pub fn factor(&self) -> Self {
@@ -270,16 +325,19 @@ impl System {
     }
 
     pub fn to_crank_nikolson(&self) -> Self {
+        info!("Applying a Crank-Nikolson time discretization");
         let theta = Symbol::new_box("θ");
         self.subs(&[[theta, Rational::new_box(1, 2)]]).simplify()
     }
 
     pub fn to_explicit_euler(&self) -> Self {
+        info!("Applying an explicit Euler time discretization");
         let theta = Symbol::new_box("θ");
         self.subs(&[[theta, Integer::new_box(0)]])
     }
 
     pub fn to_implicit_euler(&self) -> Self {
+        info!("Applying an implicit Euler time discretization");
         let theta = Symbol::new_box("θ");
         self.subs(&[[theta, Integer::new_box(1)]])
     }

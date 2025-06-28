@@ -11,19 +11,20 @@ meshes:
     type: hyper_cube
     range: "0 m .. 1 m"
     show_info: false
-    subdivisions: 50
+    subdivisions: 10
 unknowns:
   T:
-    initial: "293"
+    initial: 293
     boundary: T_hot_cold_bc
 equations:
   heat_eq: "dt(T) = thermal_diffusivity * laplacian(T)"
 functions:
   T_hot_cold_bc:
-    - x: "0 m"
+    - x: 0 .. 0.1 m
       expr: T_hot
-    - x: "1 m"
+    - x: 0.9 .. 1 m
       expr: T_cold
+    - expr: 293
 generation:
   mpi: false
   debug: false
@@ -37,4 +38,4 @@ parameters:
     value: "273 K"
   thermal_diffusivity:
     type: diffusion_coefficient
-    value: "1e-5 m²/s"
+    value: "1e-1 m²/s"

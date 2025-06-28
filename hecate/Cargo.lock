@@ -1634,6 +1634,7 @@ dependencies = [
  "derive-alias",
  "derive_more",
  "dyn-clone",
+ "env_logger",
  "indexmap",
  "itertools 0.14.0",
  "lazy_static",

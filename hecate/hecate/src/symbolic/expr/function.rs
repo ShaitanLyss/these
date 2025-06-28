@@ -4,10 +4,10 @@ use itertools::Itertools;
 
 use super::*;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Func {
-    name: String,
-    args: Vec<Box<dyn Expr>>,
+    pub name: String,
+    pub args: Vec<Box<dyn Expr>>,
 }
 
 impl Func {
@@ -109,6 +109,10 @@ impl Expr for Func {
                 .replace("^n", "")
                 .to_lowercase()
         }
+    }
+
+    fn as_function(&self) -> Option<&Func> {
+        Some(self)
     }
 }
 

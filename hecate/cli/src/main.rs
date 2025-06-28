@@ -142,7 +142,7 @@ async fn main() -> Result<()> {
             let system = system.time_discretized();
             println!("\n{system:#}");
 
-            let system = system.simplified();
+            let system = system.simplified()?;
             println!("\n{system:#}");
 
             let system = system.factor();
