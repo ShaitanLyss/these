@@ -11,7 +11,6 @@ meshes:
     type: hyper_cube
     range: "0 m .. 1 m"
     show_info: false
-    subdivisions: 10
 unknowns:
   T:
     initial: 293

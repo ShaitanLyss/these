@@ -1,6 +1,7 @@
-#include <Kokkos_Core.hpp>
 #include <iostream>
 #include <fstream>
+#include <cmath>
+#include <numbers>
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/numerics/data_out.h>
 {{ includes }}{% if mpi %}
@@ -17,13 +18,14 @@ using data_type = double;
 {% endfor %}
 
 using namespace dealii;
-using namespace Kokkos::numbers;
+using namespace dealii::numbers;
+using namespace std::numbers;
 
 
 bool float_equals(data_type a, data_type b) {
   const data_type base_epsilon = 1e-8;
-  const data_type epsilon = base_epsilon * Kokkos::max(1.0, Kokkos::max(Kokkos::abs(a), Kokkos::abs(b)));
-  return Kokkos::fabs(b - a) < epsilon;
+  const data_type epsilon = base_epsilon * std::max(1.0, std::max(std::abs(a), std::abs(b)));
+  return std::fabs(b - a) < epsilon;
 }
 
 
@@ -88,14 +90,12 @@ void Sim::output_results() {
 }
 
 int main(int argc, char *argv[]) { {% if mpi %}
-  MPI_Init(&argc, &argv);{% endif %}
-  Kokkos::initialize(argc, argv);
-
+  MPI_Init(&argc, &argv);
+  {% endif %}
   Sim sim;
   sim.run();
-
-  Kokkos::finalize();{% if mpi %}
-  MPI_Finalize();{% endif %}
-
+  {% if mpi %}
+  MPI_Finalize();
+  {% endif %}
   return 0;
 }
