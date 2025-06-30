@@ -1,5 +1,5 @@
 # Hecate
-**A thesis on running simulations without writing a single line of code**
+**A thesis on running simulations without writing a single line of code.**
 
 
 ## Prerequisites

@@ -95,7 +95,7 @@ impl Expr for Func {
     fn to_cpp(&self) -> String {
         if !self.name.contains("^") && self.name.len() > 1 {
             format!(
-                "Kokkos::{}({})",
+                "std::{}({})",
                 self.name,
                 self.args
                     .iter()

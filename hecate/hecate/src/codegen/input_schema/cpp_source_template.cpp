@@ -1,7 +1,6 @@
 #include <iostream>
 #include <fstream>
 #include <cmath>
-#include <numbers>
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/numerics/data_out.h>
 {{ includes }}{% if mpi %}
@@ -19,7 +18,9 @@ using data_type = double;
 
 using namespace dealii;
 using namespace dealii::numbers;
-using namespace std::numbers;
+
+static constexpr data_type pi = PI;
+static constexpr data_type e = E;
 
 
 bool float_equals(data_type a, data_type b) {
