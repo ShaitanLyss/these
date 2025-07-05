@@ -68,6 +68,28 @@ jobs:
             archive: zip
     steps:
       - uses: actions/checkout@master
+        with:
+          submodules: true
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23
+          cache: 'pnpm'
+          cache-dependency-path: ./hecate/hecate/js/pnpm-lock.yaml
+
+      - name: Install 1.88 rust toolchain
+        run: rustup override set 1.88
+      - name: Run cargo test
+        run: cargo test
+        working-directory: ./hecate
+      - name: Test examples
+        run: cargo test --examples
+        working-directory: ./hecate
       - name: Compile and release
         uses: rust-build/rust-build.action@v1.4.5
         env:
