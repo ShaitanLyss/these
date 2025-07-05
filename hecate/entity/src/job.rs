@@ -15,6 +15,12 @@
 use schemars::JsonSchema;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
+pub mod error;
+mod scheduler;
+pub mod service;
+pub mod workflow;
+pub use error::JobError;
+pub use service::JobConfig;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize)]
 #[sea_orm(table_name = "job")]

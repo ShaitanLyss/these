@@ -14,7 +14,6 @@ use schemars::{JsonSchema, json_schema};
 use serde::de::Error;
 use serde::de::Visitor;
 use serde::ser::SerializeMap;
-use serde_json::value::Index;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::fs::{self, File};
@@ -911,15 +910,30 @@ impl InputSchema {
             factory.dof_handler("dof_handler", &DofHandlerConfig { mesh, element }, gen_conf)?,
         )?;
 
-        let vector_config = VectorConfig { dof_handler };
+        let vector_config = VectorConfig {
+            dof_handler,
+            is_unknown: false,
+        };
+        let unknown_config = VectorConfig {
+            dof_handler,
+            is_unknown: true,
+        };
 
         let mut vectors: HashMap<&dyn Expr, String> = HashMap::with_capacity(system.num_vectors());
 
-        for vector in system.vectors() {
+        for (vector, is_unknown) in system.vectors() {
             let vector_cpp = vector.to_cpp();
             blocks.insert(
                 &vector_cpp,
-                factory.vector(&vector_cpp, &vector_config, gen_conf)?,
+                factory.vector(
+                    &vector_cpp,
+                    if is_unknown {
+                        &unknown_config
+                    } else {
+                        &vector_config
+                    },
+                    gen_conf,
+                )?,
             )?;
             vectors.insert(vector, vector_cpp.clone());
         }
@@ -936,7 +950,10 @@ impl InputSchema {
         let mut unknowns_matrices: HashMap<&dyn Expr, String> =
             HashMap::with_capacity(system.unknowns.len());
 
-        let matrix_config = MatrixConfig { sparsity_pattern };
+        let matrix_config = MatrixConfig {
+            sparsity_pattern,
+            dof_handler,
+        };
         let rhs = blocks.create("rhs", Block::Vector(&vector_config))?;
         let mut unknown_solvers: HashMap<&dyn Expr, String> = HashMap::new();
         for unknown in &system.unknowns {
@@ -958,6 +975,7 @@ impl InputSchema {
                     .create(
                         &format!("solve_{unknown_cpp}"),
                         Block::SolveUnknown(&SolveUnknownConfig {
+                            dof_handler,
                             rhs,
                             unknown_vec,
                             unknown_mat: &mat_name,
@@ -995,7 +1013,7 @@ impl InputSchema {
         )?;
 
         let mut solved_unknowns: HashSet<&dyn Expr> = HashSet::new();
-        let vectors: &Vec<_> = &system.vectors().collect();
+        let vectors: &Vec<_> = &system.vectors().map(|(v, _is_unknown)| v).collect();
         let matrixes: &Vec<_> = &system.matrixes().collect();
 
         /* Create a set to create identic constant functions only once */
@@ -1193,14 +1211,7 @@ impl From<BuildingBlock> for tera::Context {
 
         context.insert("data", &to_cpp_lines("  ", data));
         context.insert("setup", &to_cpp_lines("    ", setup));
-        context.insert(
-            "constructors",
-            &(if constructor.is_empty() {
-                "".to_string()
-            } else {
-                format!(": {}", &constructor.into_iter().join(", "))
-            }),
-        );
+        context.insert("constructors", &constructor);
         context.insert("methods_defs", &to_cpp_lines("  ", methods_defs));
         context.insert("methods_impls", &methods_impls.into_iter().join("\n"));
         insert_lines!("main_setup", main_setup, 2);
@@ -1215,7 +1226,13 @@ impl From<BuildingBlock> for tera::Context {
 pub fn to_cpp_lines<Lines: IntoIterator<Item = String>>(prefix: &str, lines: Lines) -> String {
     lines
         .into_iter()
-        .map(|s| format!("{prefix}{s};"))
+        .map(|s| {
+            if s.trim().starts_with("//") {
+                format!("{prefix}{s}")
+            } else {
+                format!("{prefix}{s};")
+            }
+        })
         .join("\n")
 }
 
@@ -1251,8 +1268,14 @@ impl<'fa> BuildingBlockCollector<'fa> {
 
         let mut additional_blocks: IndexMap<String, BuildingBlock> = IndexMap::new();
 
-        let tmp_vector_config = VectorConfig { dof_handler };
-        let tmp_matrix_config = MatrixConfig { sparsity_pattern };
+        let tmp_vector_config = VectorConfig {
+            dof_handler,
+            is_unknown: true,
+        };
+        let tmp_matrix_config = MatrixConfig {
+            sparsity_pattern,
+            dof_handler,
+        };
         let gen_conf = self.gen_conf;
         for (
             _,

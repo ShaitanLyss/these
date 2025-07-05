@@ -1,7 +1,6 @@
-mod oarsub;
 use std::sync::LazyLock;
 
-use entity::job::{self, JobScheduler, JobStatus};
+use crate::job::{self, JobScheduler, JobStatus};
 use regex::Regex;
 use thiserror::Error;
 
@@ -30,8 +29,8 @@ pub struct SchedulerJobConfig<'a> {
     pub dir: Option<&'a str>,
 }
 
-impl Scheduler for JobScheduler {
-    fn create_job_cmd(
+impl JobScheduler {
+    pub fn create_job_cmd(
         &self,
         SchedulerJobConfig {
             command,
@@ -84,7 +83,7 @@ impl Scheduler for JobScheduler {
         }
     }
 
-    fn parse_job_id(&self, response: &str) -> Option<String> {
+    pub fn parse_job_id(&self, response: &str) -> Option<String> {
         match self {
             Oarsub => OARSUB_PARSE_ID_RE
                 .captures(response)
@@ -92,11 +91,11 @@ impl Scheduler for JobScheduler {
         }
     }
 
-    fn job_status_cmd(&self, job_id: &str) -> String {
+    pub fn job_status_cmd(&self, job_id: &str) -> String {
         format!(r"oarstat -j {job_id} -f | grep -e exit_code -e 'state\s*='")
     }
 
-    fn parse_job_status(&self, response: &str) -> Option<JobStatus> {
+    pub fn parse_job_status(&self, response: &str) -> Option<JobStatus> {
         if response.contains("Running") {
             Some(JobStatus::Running)
         } else if response.contains("Waiting") {

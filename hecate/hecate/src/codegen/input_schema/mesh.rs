@@ -19,8 +19,8 @@ pub trait Mesh: std::fmt::Debug + DynClone + Any {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
 pub enum MeshEnum {
-    #[serde(rename = "hyper_cube")]
     HyperCube(HyperCubeMesh),
 }
 

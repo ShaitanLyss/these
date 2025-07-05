@@ -1,8 +1,9 @@
 [package]
-name = "entity"
+name = "hecate-entity"
 edition = "2024"
 publish = false
 rust-version.workspace = true
+version.workspace = true
 
 
 [dependencies]
@@ -10,3 +11,10 @@ sea-orm = { workspace = true }
 hecate = { path = "../hecate"}
 serde = { workspace = true }
 schemars = { workspace = true }
+hecate-executor = { path = "../executor"}
+thiserror = { workspace = true }
+regex = {workspace = true}
+serde_json = {workspace = true}
+rmcp.workspace = true
+log.workspace = true
+whoami.workspace = true

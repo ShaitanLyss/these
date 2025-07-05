@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use hecate_mcp_server::workflow;
+use hecate_entity::job;
 use log::{LevelFilter, info};
 
 #[derive(Parser)]
@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
     let job_id = args.job_id;
     let mcp = hecate_mcp_server::HecateSimulator::new().await?;
     let db = mcp.db_connection();
-    let status = workflow::update_job_status(job_id, db).await?;
+    let status = job::workflow::update_job_status(job_id, &db).await?;
     info!("status: {status:?}");
 
     Ok(())

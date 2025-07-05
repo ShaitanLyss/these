@@ -30,10 +30,26 @@ macro_rules! lines {
     };
 }
 
+pub fn owned_dofs(dof_handler: &str) -> String {
+    format!("{dof_handler}_owned_dofs")
+}
+
+pub fn relevant_dofs(dof_handler: &str) -> String {
+    format!("{dof_handler}_relevant_dofs")
+}
+
+pub fn dsp(dof_handler: &str) -> String {
+    format!("{dof_handler}_dsp")
+}
+
+pub fn distributed(dof_handler: &str) -> String {
+    format!("{dof_handler}_distributed_vec")
+}
+
 pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
     let mut factory = BuildingBlockFactory::new("deal.II");
 
-    factory.add_mesh("hyper_cube", &|name, mesh, _| {
+    factory.add_mesh("hyper_cube", &|name, mesh, GenConfig { mpi, .. }| {
         let HyperCubeMesh {
             range,
             resolution,
@@ -45,61 +61,123 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
 
         let start = range.start.value;
         let end = range.end.value;
-        let mut hyper_cube = BuildingBlock::new();
+        let mut block = BuildingBlock::new();
         let subdivisions = (end - start).div(resolution.value).abs().log2().ceil() as u64;
 
-        hyper_cube.add_includes(&["deal.II/grid/grid_generator.h", "deal.II/grid/tria.h"]);
-        hyper_cube.data.push(format!("Triangulation<dim> {name}"));
-        hyper_cube
+        if *mpi {
+            block.add_includes(&[
+                "deal.II/distributed/tria.h",
+                "deal.II/distributed/grid_refinement.h",
+            ]);
+
+            block.constructor.push(format!(
+                "{name}(MPI_COMM_WORLD,
+        typename Triangulation<dim>::MeshSmoothing(
+            Triangulation<dim>::smoothing_on_refinement |
+            Triangulation<dim>::smoothing_on_coarsening))"
+            ))
+        } else {
+            block.add_includes(&["deal.II/grid/tria.h"]);
+        }
+
+        block.add_includes(&["deal.II/grid/grid_generator.h"]);
+
+        block.data.push(format!(
+            "{}Triangulation<dim> {name}",
+            if *mpi { "parallel::distributed::" } else { "" }
+        ));
+        block
             .setup
             .push(format!("GridGenerator::hyper_cube({name}, {start}, {end})"));
-        hyper_cube
+        block
             .setup
             .push(format!("{name}.refine_global({subdivisions})"));
 
         if *show_info {
-            hyper_cube.setup.push(format!(
-                r#"std::cout << "Number of active cells: " << {name}.n_active_cells() << "\n""#
+            block.setup.push(format!(
+                r#"pcout << "Number of active cells: " << {name}.n_active_cells() << std::endl"#
             ));
         }
 
-        Ok(hyper_cube)
+        Ok(block)
     });
 
     factory.set_vector(&|name, config, GenConfig { mpi, .. }| {
-        let VectorConfig { dof_handler } = config;
+        let VectorConfig {
+            dof_handler,
+            is_unknown,
+        } = config;
         let mut vector = BuildingBlock::new();
         vector.add_includes(&["deal.II/lac/vector.h"]);
         if *mpi {
             vector.add_includes(&["deal.II/lac/petsc_vector.h"]);
         }
-        vector.add_data(&format!(
-            "{}Vector<data_type> {name}",
-            if *mpi { "PETScWrappers::MPI::" } else { "" }
-        ));
+        vector.push_data(if *mpi {
+            format!("LA::MPI::Vector {name}")
+        } else {
+            format!("Vector<data_type> {name}")
+        });
 
-        vector
-            .setup
-            .push(format!("{name}.reinit({dof_handler}.n_dofs())"));
+        vector.setup.push(if *mpi {
+            let owned_dofs = owned_dofs(&dof_handler);
+            let relevant_dofs = relevant_dofs(&dof_handler);
+            if *is_unknown && false {
+                format!("{name}.reinit({owned_dofs}, {relevant_dofs}, MPI_COMM_WORLD)")
+            } else {
+                format!("{name}.reinit({owned_dofs}, MPI_COMM_WORLD)")
+            }
+        } else {
+            format!("{name}.reinit({dof_handler}.n_dofs())")
+        });
 
         Ok(vector)
     });
 
-    factory.set_dof_handler(&|name, DofHandlerConfig { mesh, element }, _| {
-        let mut dof_handler = BuildingBlock::new();
-        dof_handler.add_includes(&["deal.II/dofs/dof_handler.h"]);
-        dof_handler.constructor.push(format!("{name}({mesh})"));
-        dof_handler.push_data(format!("DoFHandler<dim> {name}"));
+    factory.set_dof_handler(
+        &|name, DofHandlerConfig { mesh, element }, GenConfig { mpi, .. }| {
+            let mut block = BuildingBlock::new();
+            block.add_includes(&["deal.II/dofs/dof_handler.h"]);
+            block.constructor.push(format!("{name}({mesh})"));
+            block.push_data(format!("DoFHandler<dim> {name}"));
 
-        dof_handler
-            .setup
-            .push(format!("{name}.distribute_dofs({element})"));
-        dof_handler.setup.push(format!(
-            r#"std::cout << "Number of degrees of freedom: " << {name}.n_dofs() << "\n\n""#
-        ));
+            block
+                .setup
+                .push(format!("{name}.distribute_dofs({element})"));
+            block.setup.push(format!(
+                r#"pcout << "Number of degrees of freedom: " << {name}.n_dofs() << "\n" << std::endl"#
+            ));
 
-        Ok(dof_handler)
-    });
+
+            if *mpi {
+                let owned_dofs = owned_dofs(&name);
+                let relevant_dofs = relevant_dofs(&name);
+                let constraints = "constraints";
+                let distributed = distributed(&name);
+                block.push_data(format!("IndexSet {owned_dofs}"));
+                block.push_data(format!("IndexSet {relevant_dofs}"));
+                block.push_data(format!("LA::MPI::Vector {distributed}"));
+                block.setup.push(format!("{owned_dofs} = {name}.locally_owned_dofs()"));
+                block.add_includes(&["deal.II/dofs/dof_tools.h"]);
+                block.setup.push(format!("{relevant_dofs} = DoFTools::extract_locally_relevant_dofs(dof_handler)"));
+                block.push_setup([
+                    format!("{constraints}.clear()"),
+                    format!("{constraints}.reinit({owned_dofs}, {relevant_dofs})"),
+                    format!("DoFTools::make_hanging_node_constraints({name}, {constraints})"),
+
+                ]);
+                block.setup.push(
+                    format!("{distributed}.reinit({owned_dofs}, MPI_COMM_WORLD)"),
+                );
+
+                block.additional_names.insert(owned_dofs);
+                block.additional_names.insert(relevant_dofs);
+                block.additional_names.insert(distributed);
+
+            }
+
+            Ok(block)
+        },
+    );
 
     factory.set_finite_element(&|name, element, _| {
         let mut block = BuildingBlock::new();
@@ -116,9 +194,14 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
         Ok(block)
     });
 
-    factory.set_sparsity_pattern(&|name, SparsityPatternConfig { dof_handler }, _| {
+    factory.set_sparsity_pattern(&|name,
+                                   SparsityPatternConfig { dof_handler },
+                                   GenConfig {
+                                       mpi, matrix_free, ..
+                                   }| {
         let mut block = BuildingBlock::new();
-        let dsp = format!("{dof_handler}_dsp");
+
+        let dsp = dsp(dof_handler);
 
         block.add_includes(&[
             "deal.II/lac/dynamic_sparsity_pattern.h",
@@ -126,19 +209,38 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
             "deal.II/dofs/dof_tools.h",
         ]);
 
-        block.push_data(format!("SparsityPattern {name}"));
-        block.push_setup([
-            format!("DynamicSparsityPattern {dsp}({dof_handler}.n_dofs(), {dof_handler}.n_dofs())"),
-            format!("DoFTools::make_sparsity_pattern({dof_handler}, {dsp})"),
-            format!("{name}.copy_from({dsp})"),
-        ]);
+        if *mpi {
+            let constraints = "constraints";
+            let relevant_dofs = relevant_dofs(dof_handler);
+            let owned_dofs = owned_dofs(dof_handler);
+            block.includes.insert("deal.II/lac/sparsity_tools.h".into());
+            block.push_setup([
+                format!("\n    // Sparsity Pattern"),
+                format!("DynamicSparsityPattern {dsp}({relevant_dofs})"),
+                format!("DoFTools::make_sparsity_pattern({dof_handler}, {dsp}, {constraints}, false)"),
+                format!("SparsityTools::distribute_sparsity_pattern({dsp}, {owned_dofs}, MPI_COMM_WORLD, {relevant_dofs})")
+            ]);
+        } else {
+            block.push_data(format!("SparsityPattern {name}"));
+            block.push_setup([
+                format!(
+                    "DynamicSparsityPattern {dsp}({dof_handler}.n_dofs(), {dof_handler}.n_dofs())"
+                ),
+                format!("DoFTools::make_sparsity_pattern({dof_handler}, {dsp})"),
+                format!("{name}.copy_from({dsp})"),
+            ]);
+        }
         block.additional_names.insert(dsp);
 
         Ok(block)
     });
 
     factory.set_matrix(&|name,
-                         MatrixConfig { sparsity_pattern },
+                         MatrixConfig {
+                             sparsity_pattern,
+                             dof_handler,
+                             // is_unknown,
+                         },
                          GenConfig {
                              mpi, matrix_free, ..
                          }| {
@@ -148,11 +250,20 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
             block.add_includes(&["deal.II/lac/petsc_sparse_matrix.h"]);
         }
 
-        block.push_data(format!(
-            "{}SparseMatrix<data_type> {name}",
-            if *mpi { "PETScWrappers::MPI::" } else { "" }
-        ));
-        block.push_setup([format!("{name}.reinit({sparsity_pattern})")]);
+        block.push_data(if *mpi {
+            format!("LA::MPI::SparseMatrix {name}")
+        } else {
+            format!("SparseMatrix<data_type> {name}")
+        });
+        if *mpi {
+            let owned_dofs = owned_dofs(&dof_handler);
+            let dsp = dsp(&dof_handler);
+            block.setup.push(format!(
+                "{name}.reinit({owned_dofs}, {owned_dofs}, {dsp}, MPI_COMM_WORLD)"
+            ));
+        } else {
+            block.push_setup([format!("{name}.reinit({sparsity_pattern})")]);
+        }
 
         Ok(block)
     });
@@ -172,11 +283,12 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
 
     factory.set_solve_unknown(&|name,
                                 SolveUnknownConfig {
+                                    dof_handler,
                                     rhs,
                                     unknown_vec,
                                     unknown_mat,
                                 },
-                                _| {
+                                GenConfig { mpi, .. }| {
         let mut block = BuildingBlock::new();
 
         block.add_includes(&[
@@ -187,19 +299,52 @@ pub fn deal_ii_factory<'a>() -> BuildingBlockFactory<'a> {
 
         block.methods_defs.push(format!("void {name}()"));
 
-        block.methods_impls.push(format!(
-            r#"
+        block.methods_impls.push(if *mpi {
+            let owned_dofs = owned_dofs(&dof_handler);
+            let distributed = &unknown_vec;
+            let constraints = "constraints";
+            format!(
+                r#"
+void Sim::{name}() {{
+  SolverControl solver_control(dof_handler.n_dofs(), 1e-6 * {rhs}.l2_norm());
+  LA::SolverCG solver(solver_control);
+
+  // Preconditioner configuration
+  LA::MPI::PreconditionAMG::AdditionalData data;
+#ifdef USE_PETSC_LA
+  data.symmetric_operator = true;
+#else
+  /* Trilinos defaults are good */
+#endif
+
+  // Preconditioner initialization
+  LA::MPI::PreconditionAMG precondtioner;
+  precondtioner.initialize({unknown_mat}, data);
+
+  solver.solve({unknown_mat}, {distributed}, {rhs}, precondtioner);
+
+  pcout << "    {name}: " << solver_control.last_step()
+            << "  CG iterations." << std::endl;
+
+  {constraints}.distribute({distributed});
+  // {unknown_vec} = {distributed}; 
+}}"#
+            )
+        } else {
+            format!(
+                r#"
 void Sim::{name}() {{
   SolverControl solver_control(1000, 1e-8 * {rhs}.l2_norm());
   SolverCG<Vector<data_type>> cg(solver_control);
 
   cg.solve({unknown_mat}, {unknown_vec}, {rhs}, PreconditionIdentity());
 
-  std::cout << "    {name}: " << solver_control.last_step()
+  pcout << "    {name}: " << solver_control.last_step()
             << "  CG iterations." << std::endl;
 }}
             "#
-        ));
+            )
+        });
 
         Ok(block)
     });
@@ -211,7 +356,7 @@ void Sim::{name}() {{
                                      vectors,
                                      matrixes,
                                  },
-                                 GenConfig { matrix_free, .. }| {
+                                 gen_config| {
         let mut block = BuildingBlock::new();
 
         block
@@ -219,7 +364,7 @@ void Sim::{name}() {{
             .push(format!("// # Setup equation {}", equation.str()));
 
         let equation_code =
-            equation_to_deall_ii_setup_code(&equation, *unknown, vectors, matrixes)?;
+            equation_to_deall_ii_setup_code(&equation, *unknown, vectors, matrixes, gen_config)?;
         let mut tmp_vecs: HashSet<String> = HashSet::new();
         let mut tmp_mats: HashSet<String> = HashSet::new();
 
@@ -346,11 +491,14 @@ public:
         block.add_includes(&["deal.II/numerics/vector_tools_project.h"]);
 
         let unknown = target.split("_").next().unwrap();
+        let owned_dofs = owned_dofs(dof_handler);
+        let distributed = distributed(dof_handler);
 
         block.main_setup.extend(lines!(
             r"// Apply Intial Condition for {unknown} 
 VectorTools::project({dof_handler}, constraints, QGauss<dim>({element}.degree + 1),
-                     {function}, {target});"
+                     {function}, {target});
+// {target} = {distributed};"
         ));
 
         Ok(block)
@@ -374,6 +522,9 @@ fn equation_to_deall_ii_setup_code(
     unknown: &dyn Expr,
     vectors: &[&dyn Expr],
     matrixes: &[&dyn Expr],
+    GenConfig {
+        mpi, matrix_free, ..
+    }: &GenConfig,
 ) -> Result<String, ExprCodeGenError> {
     let lhs = equation.lhs.expand().factor(&[unknown]);
     let lhs = lhs.as_mul();
@@ -390,19 +541,31 @@ fn equation_to_deall_ii_setup_code(
             equation: equation.clone(),
         })?;
     }
-    let system = mat_code_gen(
-        &format!("matrix_{}", unknown.to_cpp()),
-        lhs.operands[0].get_ref(),
-        vectors,
-        matrixes,
-    )?;
+    let system_mat = format!("matrix_{}", unknown.to_cpp());
+    let system = mat_code_gen(&system_mat, lhs.operands[0].get_ref(), vectors, matrixes)?;
 
     let rhs = equation.rhs.get_ref();
     let rhs = rhs_code_gen(rhs, vectors, matrixes)?;
 
-    Ok(format!(
-        "// ## Compute system for {unknown}\n{system}\n\n\n// ## Compute rhs for {unknown}\n{rhs}"
-    ))
+    Ok(if *mpi {
+        format!(
+            "// ## Compute system for {unknown}
+{system}
+
+{system_mat}.compress(VectorOperation::add);
+
+
+// ## Compute rhs for {unknown}
+{rhs}
+
+rhs.compress(VectorOperation::add);
+"
+        )
+    } else {
+        format!(
+            "// ## Compute system for {unknown}\n{system}\n\n\n// ## Compute rhs for {unknown}\n{rhs}"
+        )
+    })
 }
 
 type ExprCodeGenRes = Result<StringWKind, ExprCodeGenError>;

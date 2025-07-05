@@ -1,0 +1,18 @@
+[package]
+name = "hecate-executor"
+edition = "2024"
+publish = false
+rust-version.workspace = true
+version.workspace = true
+
+
+[dependencies]
+russh = "0.53.0"
+russh-config = "0.50.0"
+thiserror = { workspace = true }
+regex = {workspace = true}
+shellexpand = "3.1.1"
+log = { workspace = true }
+tokio = { workspace = true }
+whoami.workspace = true
+async-fs.workspace = true

@@ -378,12 +378,13 @@ impl System {
         }
     }
 
-    pub(crate) fn vectors(&self) -> impl Iterator<Item = &dyn Expr> {
+    pub(crate) fn vectors(&self) -> impl Iterator<Item = (&dyn Expr, bool)> {
         self.unknowns
             .iter()
-            .chain(self.known_unknowns.iter())
-            .chain(self.knowns.iter())
-            .map(|f| f.get_ref())
+            .map(|u| (u, true))
+            .chain(self.known_unknowns.iter().map(|u| (u, true)))
+            .chain(self.knowns.iter().map(|f| (f, false)))
+            .map(|(f, is_unknown)| (f.get_ref(), is_unknown))
     }
 
     pub fn matrixes(&self) -> impl Iterator<Item = &dyn Expr> {

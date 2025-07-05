@@ -1,14 +1,9 @@
 use std::fs;
 
 use anyhow::Result;
-use hecate::{
-    self, BuildingBlock,
-    codegen::input_schema::{InputSchema, TEMPLATES},
-    input_schema_json_schema,
-};
+use hecate::{self, BuildingBlock, codegen::input_schema::InputSchema, input_schema_json_schema};
 
 use clap::{Parser, Subcommand};
-use tera::Tera;
 
 /// The world ain't ready for Hecate!
 #[derive(Parser)]

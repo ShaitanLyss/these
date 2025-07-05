@@ -6,12 +6,14 @@ members = [
   "mcp-server",
   "migration",
   "entity",
+  "executor",
 ]
 
 [workspace.package]
 edition = "2024"
 license-file = "../LICENSE"
 rust-version = "1.88"
+version = "0.1.0"
 
 [workspace.dependencies]
 log = "0.4.27"
@@ -23,3 +25,8 @@ sea-orm = { version = "1.1.12", features = ["sqlx-sqlite", "runtime-tokio-rustls
 regex = "1.11.1"
 env_logger = "0.11.8"
 derive_more = { version = "2.0.1", features = ["deref", "deref_mut", "from_str", "into_iterator", "from"] }
+tokio = "1.46.0"
+serde_json = "1.0.140"
+rmcp = { git = "https://github.com/jokemanfire/rust-sdk.git", branch = "deps", version = "0.1.5", features = ["server", "transport-io"] }
+whoami = "1.6.0"
+async-fs = "2.1.2"

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
-use entity::job::JobScheduler;
 use hecate::InputSchema;
+use hecate_entity::{JobConfig, job::JobScheduler};
 use log::{LevelFilter, info};
 
 #[derive(Parser)]
@@ -16,6 +16,8 @@ struct Cli {
     cluster: Option<String>,
     #[arg(short, long)]
     queue: Option<String>,
+    #[arg(short, long)]
+    mpi: Option<bool>,
 }
 
 #[tokio::main]
@@ -48,20 +50,25 @@ async fn main() -> Result<()> {
         name += "_";
         name += &num_nodes.to_string();
     }
+    let mut schema = InputSchema::from_yaml(include_str!(
+        "../../hecate/input-schemas/wave-eq.hecate.yml"
+    ))?;
+
+    if let Some(mpi) = args.mpi {
+        schema.gen_conf.mpi = mpi;
+    }
 
     let resp = mcp
-        .create_job(
+        .create_job(JobConfig {
             name,
-            InputSchema::from_yaml(include_str!(
-                "../../hecate/input-schemas/wave-eq.hecate.yml"
-            ))?,
-            None,
-            args.host,
-            Some(JobScheduler::Oarsub),
-            args.cluster,
-            args.queue,
-            args.num_nodes,
-        )
+            schema,
+            compiler: None,
+            cluster_access_name: args.host,
+            scheduler: Some(JobScheduler::Oarsub),
+            cluster: args.cluster,
+            queue: args.queue,
+            num_nodes: args.num_nodes,
+        })
         .await?;
 
     info!("response: {:?}", resp.content);

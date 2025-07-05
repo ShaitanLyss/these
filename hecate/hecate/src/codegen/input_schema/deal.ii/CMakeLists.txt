@@ -9,15 +9,14 @@ find_package(deal.II 9.4.0 REQUIRED
 )
 deal_ii_initialize_cached_variables()
 
-# set(CMAKE_BUILD_TYPE {% if debug %}Debug{% else %}Release{% endif %})
+# set(CMAKE_BUILD_TYPE Release)
 
 project("Hecate Generated Simulation with factory: deal.ii")
+
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 
-
-# get_filename_component(name ${source} NAME_WE)
 set(name "run_sim")
 set(source "main.cpp")
 add_executable(${name} ${source})

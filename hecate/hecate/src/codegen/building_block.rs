@@ -129,10 +129,13 @@ macro_rules! block_accessers {
 
 pub struct VectorConfig<'a> {
     pub dof_handler: &'a str,
+    pub is_unknown: bool,
 }
 
 pub struct MatrixConfig<'a> {
     pub sparsity_pattern: &'a str,
+    // pub is_unknown: bool
+    pub dof_handler: &'a str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,6 +187,7 @@ pub enum Block<'a> {
 }
 
 pub struct SolveUnknownConfig<'a> {
+    pub dof_handler: &'a str,
     pub rhs: &'a str,
     pub unknown_vec: &'a str,
     pub unknown_mat: &'a str,

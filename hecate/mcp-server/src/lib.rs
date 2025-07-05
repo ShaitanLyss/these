@@ -1,12 +1,8 @@
-use chrono::Utc;
-use entity::job::{self, JobStatus};
-use entity::job::{Entity as Job, JobScheduler};
-use hecate::codegen::input_schema::{CodeGenRes, InputSchema};
-use log::{debug, error, info};
+use hecate_entity::JobConfig;
+use hecate_entity::job::{self, JobStatus};
+use hecate_entity::job::{Entity as Job, JobScheduler};
+use log::{error, info};
 use migration::{ExprTrait, Migrator, MigratorTrait};
-mod executor;
-mod scheduler;
-pub mod workflow;
 use rmcp::{
     Error, RoleServer, ServiceExt,
     model::{
@@ -18,17 +14,13 @@ use rmcp::{
     tool, transport,
 };
 use sea_orm::prelude::DateTimeUtc;
-use sea_orm::{
-    ActiveEnum, ActiveModelBehavior, Condition, DbBackend, DerivePartialModel, FromQueryResult,
-    IntoActiveModel, QueryTrait,
-};
+use sea_orm::{ActiveModelBehavior, Condition, DerivePartialModel, FromQueryResult};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait, IntoSimpleExpr,
     QueryFilter,
 };
 use serde::Serialize;
 
-use crate::executor::ExecutorError;
 pub use std::error::Error as StdError;
 
 trait ToJson {
@@ -52,11 +44,11 @@ pub enum HecateError {
     NoHomeDir,
 }
 
-impl<E: StdError> From<ExecutorError<E>> for rmcp::Error {
-    fn from(value: ExecutorError<E>) -> Self {
-        rmcp::Error::internal_error(value.to_string(), None)
-    }
-}
+// impl<E: StdError> From<ExecutorError<E>> for rmcp::Error {
+//     fn from(value: ExecutorError<E>) -> Self {
+//         rmcp::Error::internal_error(value.to_string(), None)
+//     }
+// }
 
 #[tool(tool_box)]
 impl HecateSimulator {
@@ -138,13 +130,14 @@ impl HecateSimulator {
             for job in unfinished_scheduler_jobs {
                 let db = db.clone();
                 tokio::spawn(async move {
-                    let success = workflow::update_job_status(job.id, db).await;
-                    match success {
-                        Ok(_) => {
+                    let job_id = job.id;
+                    let job = job.update_status(&db).await;
+                    match job {
+                        Ok(job) => {
                             info!("Updated status for job {}", job.id);
                         }
                         Err(e) => {
-                            error!("Failed to update status for job {}: {}", job.id, e);
+                            error!("Failed to update status for job {}: {}", job_id, e);
                         }
                     }
                 });
@@ -168,69 +161,18 @@ impl HecateSimulator {
     )]
     pub async fn create_job(
         &self,
-        #[tool(param)] name: String,
-        #[tool(param)] schema: InputSchema,
-        #[tool(param)] compiler: Option<String>,
-        #[tool(param)] cluster_access_name: Option<String>,
-        #[tool(param)] scheduler: Option<JobScheduler>,
-        #[tool(param)] cluster: Option<String>,
-        #[tool(param)] queue: Option<String>,
-        #[tool(param)] num_nodes: Option<i32>,
+        #[tool(param)] job_input: JobConfig,
     ) -> Result<CallToolResult, Error> {
-        schema
-            .validate()
-            .map_err(|e| Error::invalid_params(e.to_string(), None))?;
-        if cluster_access_name.is_some() && scheduler.is_none() {
-            return Err(Error::invalid_params(
-                "cluster execution requires a scheduler",
-                None,
-            ));
-        }
-
-        let CodeGenRes {
-            code,
-            file_name,
-            cmakelists,
-            schema: _,
-        } = schema
-            .generate_sources()
-            .map_err(|e| Error::internal_error(e.to_string(), None))?;
-        let job = job::ActiveModel {
-            name: Set(name),
-            code: Set(code),
-            cmakelists: Set(cmakelists),
-            code_filename: Set(Some(file_name)),
-            schema: Set(serde_json::to_value(schema)
-                .map_err(|e| Error::internal_error(e.to_string(), None))?),
-            status: Set(JobStatus::Created),
-            compiler: Set(compiler),
-            created_at: Set(Utc::now()),
-            cluster_access_name: Set(cluster_access_name.clone()),
-            scheduler: Set(scheduler),
-            cluster: Set(cluster),
-            queue: Set(queue),
-            num_nodes: Set(num_nodes),
-            ..Default::default()
-        };
-
-        let job = job
-            .insert(&self.db)
-            .await
-            .map_err(|e| Error::internal_error(e.to_string(), None))?;
+        let job = Job::new(job_input, &self.db).await?;
         let job_id = job.id;
+        let db = self.db.clone();
 
-        match cluster_access_name {
-            Some(host) => {
-                let executor = executor::SshExecutor::new(&host)
-                    .await
-                    .map_err(|e| ExecutorError::CreationFailed(e))?;
-                tokio::spawn(workflow::run_job(job, self.db.clone(), executor));
+        tokio::spawn(async move {
+            match job.run(&db).await {
+                Ok(_) => info!("Successfully initiated job {job_id}"),
+                Err(e) => error!("Failed to run job: {e}"),
             }
-            None => {
-                let executor = executor::LocalExecutor::new();
-                tokio::spawn(workflow::run_job(job, self.db.clone(), executor));
-            }
-        }
+        });
 
         Ok(CallToolResult::success(vec![Content::text(format!(
             "id: {}",
@@ -350,8 +292,8 @@ impl rmcp::ServerHandler for HecateSimulator {
 
     async fn get_prompt(
         &self,
-        GetPromptRequestParam { name, arguments }: GetPromptRequestParam,
-        context: RequestContext<RoleServer>,
+        GetPromptRequestParam { name, arguments: _ }: GetPromptRequestParam,
+        _context: RequestContext<RoleServer>,
     ) -> Result<GetPromptResult, Error> {
         match name.as_str() {
             "system_prompt" => Ok(GetPromptResult {
@@ -369,8 +311,8 @@ impl rmcp::ServerHandler for HecateSimulator {
 
     async fn list_prompts(
         &self,
-        request: Option<PaginatedRequestParam>,
-        context: RequestContext<RoleServer>,
+        _request: Option<PaginatedRequestParam>,
+        _context: RequestContext<RoleServer>,
     ) -> Result<ListPromptsResult, Error> {
         Ok(ListPromptsResult {
             next_cursor: None,
