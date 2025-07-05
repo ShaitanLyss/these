@@ -53,51 +53,51 @@ jobs:
         uses: actions-rust-lang/rustfmt@v1
         with:
           manifest-path: ./hecate/Cargo.toml
-  release:
-    name: release ${{ matrix.target }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-pc-windows-gnu
-            archive: zip
-          - target: x86_64-unknown-linux-musl
-            archive: tar.gz tar.xz tar.zst
-          - target: x86_64-apple-darwin
-            archive: zip
-    steps:
-      - uses: actions/checkout@master
-        with:
-          submodules: true
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: latest
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 23
-          cache: 'pnpm'
-          cache-dependency-path: ./hecate/hecate/js/pnpm-lock.yaml
-
-      - name: Install 1.88 rust toolchain
-        run: rustup override set 1.88
-      - name: Run cargo test
-        run: cargo test
-        working-directory: ./hecate
-      - name: Test examples
-        run: cargo test --examples
-        working-directory: ./hecate
-      - name: Compile and release
-        uses: rust-build/rust-build.action@v1.4.5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MINIFY: true
-          SRC_DIR: hecate/cli
-          EXTRA_FILES: "README.md LICENSE hecate/hecate/input-schemas/wave-eq.hecate.yml hecate/hecate/input-schemas/heat-eq.hecate.yml"
-          TOOLCHAIN_VERSION: 1.88
-        with:
-          RUSTTARGET: ${{ matrix.target }}
-          ARCHIVE_TYPES: ${{ matrix.archive }}
+  # release:
+  #   name: release ${{ matrix.target }}
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       include:
+  #         - target: x86_64-pc-windows-gnu
+  #           archive: zip
+  #         - target: x86_64-unknown-linux-musl
+  #           archive: tar.gz tar.xz tar.zst
+  #         - target: x86_64-apple-darwin
+  #           archive: zip
+  #   steps:
+  #     - uses: actions/checkout@master
+  #       with:
+  #         submodules: true
+  #     - name: Install pnpm
+  #       uses: pnpm/action-setup@v4
+  #       with:
+  #         version: latest
+  #
+  #     - name: Install Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 23
+  #         cache: 'pnpm'
+  #         cache-dependency-path: ./hecate/hecate/js/pnpm-lock.yaml
+  #
+  #     - name: Install 1.88 rust toolchain
+  #       run: rustup override set 1.88
+  #     - name: Run cargo test
+  #       run: cargo test
+  #       working-directory: ./hecate
+  #     - name: Test examples
+  #       run: cargo test --examples
+  #       working-directory: ./hecate
+  #     - name: Compile and release
+  #       uses: rust-build/rust-build.action@v1.4.5
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         MINIFY: true
+  #         SRC_DIR: hecate/cli
+  #         EXTRA_FILES: "README.md LICENSE hecate/hecate/input-schemas/wave-eq.hecate.yml hecate/hecate/input-schemas/heat-eq.hecate.yml"
+  #         TOOLCHAIN_VERSION: 1.88
+  #       with:
+  #         RUSTTARGET: ${{ matrix.target }}
+  #         ARCHIVE_TYPES: ${{ matrix.archive }}
