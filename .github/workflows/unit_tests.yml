@@ -75,6 +75,7 @@ jobs:
           MINIFY: true
           SRC_DIR: hecate/cli
           EXTRA_FILES: "README.md LICENSE hecate/hecate/input-schemas/wave-eq.hecate.yml hecate/hecate/input-schemas/heat-eq.hecate.yml"
+          TOOLCHAIN_VERSION: 1.88
         with:
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
