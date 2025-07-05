@@ -25,6 +25,9 @@ duckies
 build
 target
 
+# Results
+results
+
 # Prerequisites
 *.d
 
