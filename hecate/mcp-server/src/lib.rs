@@ -3,8 +3,10 @@ use hecate_entity::job::{self, JobStatus};
 use hecate_entity::job::{Entity as Job, JobScheduler};
 use log::{error, info};
 use migration::{ExprTrait, Migrator, MigratorTrait};
+use rmcp::handler::server::tool::{Parameters, ToolRouter};
+use rmcp::tool_router;
 use rmcp::{
-    Error, RoleServer, ServiceExt,
+    ErrorData as Error, RoleServer, ServiceExt,
     model::{
         CallToolResult, Content, GetPromptRequestParam, GetPromptResult, ListPromptsResult,
         PaginatedRequestParam, Prompt, PromptMessage, PromptMessageContent, PromptMessageRole,
@@ -36,6 +38,7 @@ impl<T: Serialize> ToJson for T {
 #[derive(Clone)]
 pub struct HecateSimulator {
     db: DatabaseConnection,
+    pub tool_router: ToolRouter<Self>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -50,7 +53,7 @@ pub enum HecateError {
 //     }
 // }
 
-#[tool(tool_box)]
+#[tool_router]
 impl HecateSimulator {
     pub fn db_connection(&self) -> DatabaseConnection {
         self.db.clone()
@@ -62,6 +65,7 @@ impl HecateSimulator {
         std::fs::create_dir_all(&dir)?;
         let res = HecateSimulator {
             db: Database::connect(format!("sqlite://{}/hecate.db?mode=rwc", dir.display())).await?,
+            tool_router: Self::tool_router(),
         };
 
         Migrator::up(&res.db, None).await?;
@@ -151,6 +155,12 @@ impl HecateSimulator {
         Ok(CallToolResult::success(vec![Content::text("Too hot")]))
     }
 
+    /// Returns the creator's name
+    #[tool]
+    async fn creator_name() -> String {
+        "It's a secret ! Just kidding, it's Lyss.".into()
+    }
+
     #[tool(
         description = "Submit a new simulation job. If no number of num_nodes is provided and mpi is set to true in the schema, the number of nodes will be set to the number of available compute nodes.
         By default, don't use mpi when running locally, and don't set debug to true. Finally, make sure the cfl condition is respected.
@@ -161,7 +171,7 @@ impl HecateSimulator {
     )]
     pub async fn create_job(
         &self,
-        #[tool(param)] job_input: JobConfig,
+        Parameters(job_input): Parameters<JobConfig>,
     ) -> Result<CallToolResult, Error> {
         let job = Job::new(job_input, &self.db).await?;
         let job_id = job.id;
@@ -183,7 +193,10 @@ impl HecateSimulator {
     #[tool(
         description = "Cancel a simulation job. For example, this can be useful when one wants to make some changes to the input schema, and then recreate a new job with the updated configuration."
     )]
-    async fn cancel_job(&self, #[tool(param)] job_id: i64) -> Result<CallToolResult, Error> {
+    async fn cancel_job(
+        &self,
+        Parameters(job_id): Parameters<i64>,
+    ) -> Result<CallToolResult, Error> {
         let job = Job::find_by_id(job_id)
             .one(&self.db)
             .await
@@ -231,7 +244,10 @@ impl HecateSimulator {
     #[tool(
         description = "Get partial information about a simulation job (excluding source files and input schema)"
     )]
-    pub async fn sim_job_info(&self, #[tool(param)] job_id: i64) -> Result<CallToolResult, Error> {
+    pub async fn sim_job_info(
+        &self,
+        Parameters(job_id): Parameters<i64>,
+    ) -> Result<CallToolResult, Error> {
         #[derive(FromQueryResult, Serialize, DerivePartialModel)]
         #[sea_orm(entity = "Job")]
         struct JobInfo {
@@ -266,7 +282,7 @@ impl HecateSimulator {
     #[tool(description = "Get full information about a simulation job (including source files)")]
     pub async fn sim_job_full_info(
         &self,
-        #[tool(param)] job_id: i64,
+        Parameters(job_id): Parameters<i64>,
     ) -> Result<CallToolResult, Error> {
         let job = Job::find_by_id(job_id)
             .one(&self.db)
@@ -277,7 +293,6 @@ impl HecateSimulator {
     }
 }
 
-#[tool(tool_box)]
 impl rmcp::ServerHandler for HecateSimulator {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {

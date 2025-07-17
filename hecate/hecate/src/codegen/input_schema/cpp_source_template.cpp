@@ -12,6 +12,9 @@
 #include <deal.II/base/mpi.h>
 #include <mpi.h>
 {%- endif %}
+#ifdef DEAL_II_WITH_KOKKOS
+#include <Kokkos_Core.hpp>
+#endif
 
 const int dim = {{ dimension }};
 using data_type = double;
@@ -149,10 +152,20 @@ int main(int argc, char *argv[]) {
   try {
     {% if mpi -%}
     Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, numbers::invalid_unsigned_int);
+    {%- else -%}
+    #ifdef DEAL_II_WITH_KOKKOS
+    Kokkos::initialize(argc, argv);
+    #endif
+    {%- endif %}
 
-    {% endif -%}
     Sim sim;
     sim.run();
+
+    {% if not mpi -%}
+    #ifdef DEAL_II_WITH_KOKKOS
+    Kokkos::finalize();
+    #endif
+    {% endif -%}
 
   } catch (std::exception &exc) {
     std::cerr << std::endl

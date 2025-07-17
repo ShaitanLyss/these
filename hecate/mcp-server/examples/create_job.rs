@@ -3,6 +3,7 @@ use clap::Parser;
 use hecate::InputSchema;
 use hecate_entity::{JobConfig, job::JobScheduler};
 use log::{LevelFilter, info};
+use rmcp::handler::server::tool::Parameters;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -59,7 +60,7 @@ async fn main() -> Result<()> {
     }
 
     let resp = mcp
-        .create_job(JobConfig {
+        .create_job(Parameters(JobConfig {
             name,
             schema,
             compiler: None,
@@ -68,7 +69,7 @@ async fn main() -> Result<()> {
             cluster: args.cluster,
             queue: args.queue,
             num_nodes: args.num_nodes,
-        })
+        }))
         .await?;
 
     info!("response: {:?}", resp.content);
