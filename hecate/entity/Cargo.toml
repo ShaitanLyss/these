@@ -1,9 +1,11 @@
 [package]
 name = "hecate-entity"
 edition = "2024"
-publish = false
 rust-version.workspace = true
 version.workspace = true
+repository.workspace = true
+license-file.workspace = true
+description = "Database entities for the Hecate simulation code generator!"
 
 
 [dependencies]
