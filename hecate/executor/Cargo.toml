@@ -1,7 +1,6 @@
 [package]
 name = "hecate-executor"
 edition = "2024"
-publish = false
 version = "0.1.0"
 rust-version.workspace = true
 repository.workspace = true
