@@ -1740,9 +1740,9 @@ dependencies = [
  "hecate-entity",
  "hecate-executor",
  "hecate-lib",
+ "hecate-migration",
  "hecate-symrs",
  "log",
- "migration",
  "regex 1.11.1",
  "rmcp",
  "schemars",
@@ -1752,6 +1752,14 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "hecate-migration"
+version = "0.1.0"
+dependencies = [
+ "async-std",
+ "sea-orm-migration",
 ]
 
 [[package]]
@@ -2287,14 +2295,6 @@ name = "memchr"
 version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
-
-[[package]]
-name = "migration"
-version = "0.1.0"
-dependencies = [
- "async-std",
- "sea-orm-migration",
-]
 
 [[package]]
 name = "minimal-lexical"
