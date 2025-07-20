@@ -27,7 +27,7 @@ Supported targets
 Once you've got the rust toolchain installed, the installation process is straightforward. You can install any binary using `cargo install BINARY` where `cargo` is the builtin package manager of Rust.
 
 > [!NOTE]
-> If running `cargo` commands fail because cargo isn't found, make sure that the environment was loaded
+> If running `cargo` commands fail because cargo isn't found, make sure that the environment was loaded. You can try restarting your shell if you just installed the rust toolchain with rustup, or manually load the appropriate cargo environment file in the `$HOME/.cargo` directory.
 
 ### Hecate CLI
 ```bash
@@ -38,7 +38,6 @@ cargo install hecate-cli
 ```bash
 cargo install hecate-mcp-server
 ```
-
 
 
 ## Usage
