@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'hecate/**'
+      - '.github/workflows/publish.yml'
 
 jobs:
   test:
