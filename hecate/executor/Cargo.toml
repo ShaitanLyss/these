@@ -2,8 +2,11 @@
 name = "hecate-executor"
 edition = "2024"
 publish = false
+version = "0.1.0"
 rust-version.workspace = true
-version.workspace = true
+repository.workspace = true
+license-file.workspace = true
+description = "The local / remote command executor for the Hecate simulation code generator!"
 
 
 [dependencies]

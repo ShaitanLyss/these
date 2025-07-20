@@ -13,7 +13,7 @@ sea-orm = { workspace = true }
 hecate-lib = { workspace = true }
 serde = { workspace = true }
 schemars = { workspace = true }
-hecate-executor = { path = "../executor"}
+hecate-executor = { workspace = true }
 thiserror = { workspace = true }
 regex = {workspace = true}
 serde_json = {workspace = true}

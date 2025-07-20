@@ -34,3 +34,5 @@ whoami = "1.6.0"
 async-fs = "2.1.2"
 hecate-symrs = { path = "symbolic", version = "0.2.3"}
 hecate-lib = { path = "hecate", version = "0.2.2"}
+hecate-executor = { path = "executor", version = "0.1.0" }
+hecate-entity = { path = "entity", version = "0.1.0" }
