@@ -3,6 +3,7 @@ name = "hecate-symrs"
 version = "0.2.2"
 edition = "2024"
 rust-version.workspace = true
+license-file.workspace = true
 
 [lib]
 name = "symrs"
