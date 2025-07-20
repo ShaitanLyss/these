@@ -15,7 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     name: 'test'
     steps: 
-      - uses: actions/checkout@master
+      - name: Checkout repository
+        uses: actions/checkout@master
+        with:
+          fetch-depth: 0
       # - name: Run tests
       #   working-directory: hecate
       #   run: cargo test && cargo test --examples
@@ -23,9 +26,17 @@ jobs:
     runs-on: ubuntu-latest
     name: 'release'
     needs: test
+    environment: cargo
     steps:
-      - name: Run semantic release
-        run: npx semantic-release
+      - name: Checkout repository
+        uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
   # publish:
   #   runs-on: ubuntu-latest
   #   # needs: 'test'
