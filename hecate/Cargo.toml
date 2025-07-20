@@ -1,5 +1,7 @@
 [workspace]
 resolver = "3"
+repository = "https://github.com/ShaitanLyss/these"
+license-file = "../LICENSE"
 members = [
   "hecate",
   "cli",
@@ -7,6 +9,7 @@ members = [
   "migration",
   "entity",
   "executor",
+  "symbolic",
 ]
 
 [workspace.package]
