@@ -20,7 +20,7 @@ cmake = "0.1.54"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-hecate-symrs = { path = "../symbolic"}
+hecate-symrs = { path = "../symbolic", version = "0.2.2" }
 derive-alias = "0.1.1"
 log = { workspace = true }
 schemars = {workspace = true}
