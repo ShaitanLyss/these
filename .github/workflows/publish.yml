@@ -15,7 +15,7 @@ jobs:
         run: cargo test && cargo test --examples
   publish:
     runs-on: ubuntu-latest
-
+    needs: 'test'
     name: 'publish'
 
     # Reference your environment variables
