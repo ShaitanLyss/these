@@ -1,4 +1,3 @@
-use symrs::{BoxExpr, Expr, Symbol};
 use hecate_entity::JobConfig;
 use hecate_entity::job::{self, JobStatus};
 use hecate_entity::job::{Entity as Job, JobScheduler};
@@ -24,6 +23,7 @@ use sea_orm::{
     QueryFilter,
 };
 use serde::{Deserialize, Serialize};
+use symrs::{BoxExpr, Expr, Symbol};
 
 use std::collections::HashMap;
 pub use std::error::Error as StdError;
@@ -212,7 +212,7 @@ impl HecateSimulator {
             )
         })?;
         let res = expr.evaluate(vars);
-        
+
         Ok(res.str())
     }
 

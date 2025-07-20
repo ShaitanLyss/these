@@ -452,7 +452,6 @@ pub enum FunctionDef {
     Conditioned(Vec<ConditionedFunctionExpression>),
 }
 
-
 struct FunctionDefVisitor;
 
 impl<'de> Visitor<'de> for FunctionDefVisitor {

@@ -4,9 +4,9 @@
 
 pub use codegen::input_schema::CodeGenError;
 pub use codegen::input_schema::IndexMap;
-pub use codegen::input_schema::SchemaValidationError;
 #[cfg(target_family = "wasm")]
 use codegen::input_schema::InputSchema;
+pub use codegen::input_schema::SchemaValidationError;
 use schemars::schema_for;
 pub mod codegen;
 #[cfg(all(feature = "js", not(target_arch = "wasm32")))]

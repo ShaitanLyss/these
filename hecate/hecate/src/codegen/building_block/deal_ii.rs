@@ -6,10 +6,8 @@ use regex::{Captures, Regex};
 
 use crate::codegen::building_block::{ApplyBoundaryConditionConfig, InitialConditionConfig};
 use crate::codegen::input_schema::GenConfig;
+use crate::codegen::input_schema::{FiniteElement, mesh::HyperCubeMesh};
 use symrs::*;
-use crate::{
-    codegen::input_schema::{FiniteElement, mesh::HyperCubeMesh},
-};
 mod function_def;
 use function_def::function_def_to_deal_ii_code;
 

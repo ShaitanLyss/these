@@ -27,7 +27,7 @@ pub use integral::*;
 
 pub mod symbol;
 use schemars::{JsonSchema, json_schema};
-use serde::{de, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de};
 pub use symbol::*;
 
 pub mod integer;
