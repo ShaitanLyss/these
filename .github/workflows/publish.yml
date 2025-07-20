@@ -2,7 +2,7 @@ name: Publish to Cargo
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   publish:
@@ -32,6 +32,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@master
+      - name: Run tests
+        working-directory: hecate
+        run: cargo test && cargo test --examples
 
       # Use caching to speed up your build
       - name: Cache publish-action bin
