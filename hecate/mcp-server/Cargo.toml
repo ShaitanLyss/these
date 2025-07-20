@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 license-file.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+description = "The Model Context Protocol server for the Hecate simulation code generator!"
 
 [dependencies]
 hecate-lib = { workspace = true }
