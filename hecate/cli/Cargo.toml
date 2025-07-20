@@ -18,6 +18,7 @@ cpp = []
 
 [dependencies]
 hecate-lib = { workspace = true }
+hecate-symrs = { workspace = true }
 clap = { version = "4.5.36", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 serde_yaml = "0.9.34"

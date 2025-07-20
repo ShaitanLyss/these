@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
             hecate::js::test_js().await?;
         }
         Commands::Matrixify => {
-            use hecate::symbolic::*;
+            use symrs::*;
             let x = &Symbol::new_box("x");
             let y = &Symbol::new_box("y");
             let z = &Symbol::new_box("z");

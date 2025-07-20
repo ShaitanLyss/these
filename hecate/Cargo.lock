@@ -1658,6 +1658,7 @@ dependencies = [
  "clap",
  "env_logger",
  "hecate-lib",
+ "hecate-symrs",
  "log",
  "serde_yaml",
  "tera",
