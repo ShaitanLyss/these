@@ -43,6 +43,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@master
+      - run: echo ${{ matrix.dir }}
       - name: Run publish-action
         uses: tu6ge/publish-action@v0.4.6
         env:
