@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::LazyLock};
+// use std::{collections::HashMap, sync::LazyLock};
 
 use itertools::Itertools;
 
@@ -116,11 +116,11 @@ impl Expr for Func {
     }
 }
 
-static CPP_FUNC_NAMES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
-    let res = HashMap::from([("sin", "sin"), ("cos", "cos"), ("sqrt", "sqrt")]);
-
-    return res;
-});
+// static CPP_FUNC_NAMES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
+//     let res = HashMap::from([("sin", "sin"), ("cos", "cos"), ("sqrt", "sqrt")]);
+//
+//     return res;
+// });
 
 impl fmt::Debug for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -1,4 +1,4 @@
-use hecate::{BoxExpr, Expr, Symbol};
+use symrs::{BoxExpr, Expr, Symbol};
 use hecate_entity::JobConfig;
 use hecate_entity::job::{self, JobStatus};
 use hecate_entity::job::{Entity as Job, JobScheduler};
@@ -16,7 +16,7 @@ use rmcp::{
     tool, transport,
 };
 use rmcp::{tool_handler, tool_router};
-use schemars::{JsonSchema, json_schema};
+use schemars::JsonSchema;
 use sea_orm::prelude::DateTimeUtc;
 use sea_orm::{ActiveModelBehavior, Condition, DerivePartialModel, FromQueryResult};
 use sea_orm::{
@@ -24,7 +24,6 @@ use sea_orm::{
     QueryFilter,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use std::collections::HashMap;
 pub use std::error::Error as StdError;

@@ -7,6 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 hecate-lib = { workspace = true }
+hecate-symrs = { workspace = true }
 rmcp.workspace = true
 anyhow = { workspace = true }
 thiserror = { workspace = true }
