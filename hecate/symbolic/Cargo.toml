@@ -1,0 +1,35 @@
+[package]
+name = "hecate-symrs"
+version = "0.2.2"
+edition = "2024"
+rust-version.workspace = true
+
+[lib]
+name = "symrs"
+
+
+[dependencies]
+log = { workspace = true }
+schemars = {workspace = true}
+serde = { workspace = true }
+serde_json = { workspace = true }
+tera = {version = "1.20.0", default-features = false}
+thiserror = { workspace = true}
+anyhow = { workspace = true}
+num-traits = "0.2.19"
+lazy_static = "1.5.0"
+itertools = "0.14.0"
+indexmap = { version = "2.9.0", features = ["serde"] }
+serde_yaml = "0.9.34"
+typetag = "0.2.20"
+dyn-clone = "1.0.19"
+regex = "1.11.1"
+const_format = "0.2.34"
+num = "0.4.3"
+uom = { version = "0.37.0", default-features = false, features = ["std", "si", "serde", "f64"] }
+derive_more = { workspace = true }
+ucfirst = "0.3.0"
+env_logger = {workspace = true}
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wasm-bindgen = "0.2.100"
