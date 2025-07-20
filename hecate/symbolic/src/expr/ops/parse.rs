@@ -1,5 +1,4 @@
 use indexmap::IndexMap;
-use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use std::{num::ParseIntError, str::FromStr, sync::LazyLock};
 
@@ -161,11 +160,9 @@ impl FromStr for Mul {
     }
 }
 
-const func_pattern: &str = r"^(\w+)\((.*?)\)$";
+const FUNC_PATTERN: &str = r"^(\w+)\((.*?)\)$";
 
-lazy_static! {
-    static ref func_re: Regex = Regex::new(func_pattern).unwrap();
-}
+static FUNC_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(FUNC_PATTERN).unwrap());
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ParseFunctionError {
@@ -346,12 +343,12 @@ impl FromStr for expr::Pow {
     }
 }
 
-lazy_static! {
-    static ref diff_re: Regex = Regex::new(
-        r"^[d∂]\^?([\d⁰¹²³⁴⁵⁶⁷⁸⁹]*)\(?(.+?)\)?\s*[/_]\s*[d∂]\(?(\w+?)\)?\^?([\d⁰¹²³⁴⁵⁶⁷⁸]*)$"
+static DIFF_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^[d∂]\^?([\d⁰¹²³⁴⁵⁶⁷⁸⁹]*)\(?(.+?)\)?\s*[/_]\s*[d∂]\(?(\w+?)\)?\^?([\d⁰¹²³⁴⁵⁶⁷⁸]*)$",
     )
-    .unwrap();
-}
+    .unwrap()
+});
 
 #[derive(Debug, Error, PartialEq)]
 pub enum ParseDiffError {
@@ -371,7 +368,7 @@ impl FromStr for Diff {
     type Err = ParseDiffError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let captures = diff_re
+        let captures = DIFF_RE
             .captures(s)
             .ok_or_else(|| ParseDiffError::InvalidFormat(s.to_string()))?;
         captures.try_into()
@@ -486,7 +483,7 @@ pub fn parse_expr(s: &str) -> Result<Box<dyn Expr>, ParseExprError> {
         Box::new(s.parse::<Equation>()?)
     }
     // Functions
-    else if let Some(captured_func) = func_re.captures(s)
+    else if let Some(captured_func) = FUNC_RE.captures(s)
         && are_brackets_valid(&captured_func[2])
     {
         return Ok(parse_function(&captured_func[1], &captured_func[2])?);
@@ -510,7 +507,7 @@ pub fn parse_expr(s: &str) -> Result<Box<dyn Expr>, ParseExprError> {
         Box::new(s.parse::<Add>()?)
     }
     // Differentiations
-    else if let Some(captured_diff) = diff_re.captures(s) {
+    else if let Some(captured_diff) = DIFF_RE.captures(s) {
         Box::new(TryInto::<Diff>::try_into(captured_diff)?)
     }
     // Multiplications, Divisions

@@ -1,11 +1,10 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::LazyLock};
 
 use itertools::Itertools;
 use log::{debug, info};
 
 use super::*;
 use crate::symbol;
-use lazy_static::lazy_static;
 
 #[derive(Debug, Clone)]
 pub struct System {
@@ -15,14 +14,14 @@ pub struct System {
     pub equations: Vec<Equation>,
 }
 
-lazy_static! {
-    static ref shape_matrixes: [Symbol; 4] = [
+static SHAPE_MATRIXES: LazyLock<[Symbol; 4]> = LazyLock::new(|| {
+    [
         Symbol::new("M^n"),
         Symbol::new("A^n"),
         Symbol::new("M^n,n-1"),
-        Symbol::new("A^n,n-1")
-    ];
-}
+        Symbol::new("A^n,n-1"),
+    ]
+});
 
 impl std::fmt::Display for System {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -388,7 +387,7 @@ impl System {
     }
 
     pub fn matrixes(&self) -> impl Iterator<Item = &dyn Expr> {
-        shape_matrixes.iter().map(|m| m.get_ref())
+        SHAPE_MATRIXES.iter().map(|m| m.get_ref())
     }
 
     pub fn num_vectors(&self) -> usize {
