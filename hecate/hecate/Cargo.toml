@@ -3,6 +3,8 @@ name = "hecate"
 version = "0.2.2"
 edition = "2024"
 rust-version.workspace = true
+license-file.workspace = true
+description = "A library for generating simulation code from a mathematical problem description!"
 
 [features]
 js = []
@@ -44,6 +46,6 @@ env_logger = {workspace = true}
 wasm-bindgen = "0.2.100"
 
 
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-rquickjs = {  optional = true, git = "https://github.com/DelSkayn/rquickjs.git", version = "0.9.0", features = ["futures", "macro", "loader"] }
-llrt_modules = { optional = true, git = "https://github.com/awslabs/llrt.git", version = "0.6.0-beta", default-features = false, features = ["crypto", "console", "timers"] }
+# [target.'cfg(not(target_family = "wasm"))'.dependencies]
+# rquickjs = {  optional = true, git = "https://github.com/DelSkayn/rquickjs.git", version = "0.9.0", features = ["futures", "macro", "loader"] }
+# llrt_modules = { optional = true, git = "https://github.com/awslabs/llrt.git", version = "0.6.0-beta", default-features = false, features = ["crypto", "console", "timers"] }
