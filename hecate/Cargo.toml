@@ -1,7 +1,5 @@
 [workspace]
 resolver = "3"
-repository = "https://github.com/ShaitanLyss/these"
-license-file = "../LICENSE"
 members = [
   "hecate",
   "cli",
@@ -17,6 +15,7 @@ edition = "2024"
 license-file = "../LICENSE"
 rust-version = "1.88"
 version = "0.1.0"
+repository = "https://github.com/ShaitanLyss/these"
 
 [workspace.dependencies]
 log = "0.4.27"

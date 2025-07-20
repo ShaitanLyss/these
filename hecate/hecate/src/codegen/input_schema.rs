@@ -2,13 +2,11 @@ use crate::StdError;
 use crate::codegen::building_block::{ApplyBoundaryConditionConfig, InitialConditionConfig};
 use crate::codegen::input_schema::quantity::{NO_REF_QUANTITY_PATTERN, QuantityEnum};
 use crate::codegen::input_schema::unit::format_unit;
-use crate::ops::ParseExprError;
-use crate::system::SystemError;
 use derive_more::{Deref, DerefMut, From, FromStr, IntoIterator};
 use indexmap::IndexMap as BaseIndexMap;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use log::{debug, info};
+use log::debug;
 use regex::Regex;
 use schemars::{JsonSchema, json_schema};
 use serde::de::Error;
@@ -22,6 +20,8 @@ use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::LazyLock;
+use symrs::ops::ParseExprError;
+use symrs::system::SystemError;
 pub trait RawRepr {
     fn raw(&self) -> &str;
 }
@@ -40,9 +40,8 @@ use serde::{Deserialize, Serialize};
 use tera::Tera;
 use thiserror::Error;
 
-use crate::{
-    Equation, Expr, Func, Symbol, System, codegen::building_block::deal_ii_factory, symbol,
-};
+use crate::codegen::building_block::deal_ii_factory;
+use symrs::{Equation, Expr, Func, Symbol, System, symbol};
 
 #[derive(Deref, DerefMut, Deserialize, Serialize, Clone, Debug, IntoIterator, From)]
 #[from(forward)]
@@ -453,37 +452,6 @@ pub enum FunctionDef {
     Conditioned(Vec<ConditionedFunctionExpression>),
 }
 
-impl Serialize for Box<dyn Expr> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.str())
-    }
-}
-struct ExprVisitor;
-impl<'de> Visitor<'de> for ExprVisitor {
-    type Value = Box<dyn Expr>;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a properly written function expression")
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(v.parse().map_err(|e| E::custom(e))?)
-    }
-}
-impl<'de> Deserialize<'de> for Box<dyn Expr> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(deserializer.deserialize_str(ExprVisitor)?)
-    }
-}
 
 struct FunctionDefVisitor;
 
@@ -506,7 +474,7 @@ impl<'de> Visitor<'de> for FunctionDefVisitor {
         E: serde::de::Error,
     {
         Ok(FunctionDef::Expr(FunctionExpression(
-            crate::Integer::new_box(v as isize),
+            symrs::Integer::new_box(v as isize),
         )))
     }
 
@@ -515,7 +483,7 @@ impl<'de> Visitor<'de> for FunctionDefVisitor {
         E: serde::de::Error,
     {
         Ok(FunctionDef::Expr(FunctionExpression(
-            crate::Integer::new_box(v as isize),
+            symrs::Integer::new_box(v as isize),
         )))
     }
 

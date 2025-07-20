@@ -4,6 +4,7 @@ version = "0.2.2"
 edition = "2024"
 rust-version.workspace = true
 license-file.workspace = true
+repository.workspace = true
 description = "A library for generating simulation code from a mathematical problem description!"
 
 [features]
@@ -19,6 +20,7 @@ cmake = "0.1.54"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+hecate-symrs = { path = "../symbolic"}
 derive-alias = "0.1.1"
 log = { workspace = true }
 schemars = {workspace = true}

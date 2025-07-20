@@ -1,12 +1,12 @@
+use hecate::{BoxExpr, Expr, Symbol};
 use hecate_entity::JobConfig;
 use hecate_entity::job::{self, JobStatus};
 use hecate_entity::job::{Entity as Job, JobScheduler};
 use log::{error, info};
 use migration::{ExprTrait, Migrator, MigratorTrait};
 use rmcp::handler::server::tool::{Parameters, ToolRouter};
-use rmcp::tool_router;
 use rmcp::{
-    ErrorData as Error, RoleServer, ServiceExt,
+    ErrorData as McpError, RoleServer, ServiceExt,
     model::{
         CallToolResult, Content, GetPromptRequestParam, GetPromptResult, ListPromptsResult,
         PaginatedRequestParam, Prompt, PromptMessage, PromptMessageContent, PromptMessageRole,
@@ -15,14 +15,18 @@ use rmcp::{
     service::RequestContext,
     tool, transport,
 };
+use rmcp::{tool_handler, tool_router};
+use schemars::{JsonSchema, json_schema};
 use sea_orm::prelude::DateTimeUtc;
 use sea_orm::{ActiveModelBehavior, Condition, DerivePartialModel, FromQueryResult};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait, IntoSimpleExpr,
     QueryFilter,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
+use std::collections::HashMap;
 pub use std::error::Error as StdError;
 
 trait ToJson {
@@ -52,6 +56,28 @@ pub enum HecateError {
 //         rmcp::Error::internal_error(value.to_string(), None)
 //     }
 // }
+
+#[derive(JsonSchema, Deserialize)]
+struct GreetRequest {
+    /// Name of the person to greet
+    name: String,
+}
+
+#[derive(JsonSchema, Deserialize)]
+struct JobRequest {
+    job_id: i64,
+}
+
+/// A request to evaluate a mathematical expression
+/// Variables can be supplied to substitute the symbols with values
+#[derive(JsonSchema, Deserialize)]
+struct EvaluateExprRequest {
+    /// Mathematical expression
+    expr: String,
+
+    /// Concretized symbol values (optional)
+    vars: Option<HashMap<Symbol, BoxExpr>>,
+}
 
 #[tool_router]
 impl HecateSimulator {
@@ -135,13 +161,20 @@ impl HecateSimulator {
                 let db = db.clone();
                 tokio::spawn(async move {
                     let job_id = job.id;
-                    let job = job.update_status(&db).await;
-                    match job {
+                    let updated_job = job.clone().update_status(&db).await;
+                    match updated_job {
                         Ok(job) => {
                             info!("Updated status for job {}", job.id);
                         }
                         Err(e) => {
-                            error!("Failed to update status for job {}: {}", job_id, e);
+                            error!("Failed to update status for job {job_id}: {e}");
+                            info!("Setting status of job {job_id} to `Failed`");
+                            match job.set_status(JobStatus::Failed, &db).await {
+                                Ok(job) => info!("Set status `Failed` on job {}", job.id),
+                                Err(e) => {
+                                    error!("Failed to set status `Failed` on job {job_id} : {e}")
+                                }
+                            }
                         }
                     }
                 });
@@ -150,15 +183,38 @@ impl HecateSimulator {
 
         Ok(res)
     }
-    #[tool(description = "Get the current weather")]
-    fn get_weather() -> Result<CallToolResult, Error> {
-        Ok(CallToolResult::success(vec![Content::text("Too hot")]))
+    /// Gets the current weather
+    #[tool]
+    fn get_weather() -> String {
+        "Too hot".into()
     }
 
     /// Returns the creator's name
     #[tool]
-    async fn creator_name() -> String {
+    fn creator_name() -> String {
         "It's a secret ! Just kidding, it's Lyss.".into()
+    }
+
+    /// Greets a person
+    #[tool]
+    fn greet(Parameters(GreetRequest { name }): Parameters<GreetRequest>) -> String {
+        format!("Hey there {name}!")
+    }
+
+    /// Evaluates a math expression
+    #[tool]
+    fn evaluate(
+        Parameters(EvaluateExprRequest { expr, vars }): Parameters<EvaluateExprRequest>,
+    ) -> Result<String, McpError> {
+        let expr: Box<dyn Expr> = expr.parse().map_err(|e| {
+            McpError::invalid_params(
+                format!("Expression couldn't be parsed : {e}"),
+                Some(serde_json::Value::String(expr)),
+            )
+        })?;
+        let res = expr.evaluate(vars);
+        
+        Ok(res.str())
     }
 
     #[tool(
@@ -172,7 +228,7 @@ impl HecateSimulator {
     pub async fn create_job(
         &self,
         Parameters(job_input): Parameters<JobConfig>,
-    ) -> Result<CallToolResult, Error> {
+    ) -> Result<CallToolResult, McpError> {
         let job = Job::new(job_input, &self.db).await?;
         let job_id = job.id;
         let db = self.db.clone();
@@ -195,19 +251,19 @@ impl HecateSimulator {
     )]
     async fn cancel_job(
         &self,
-        Parameters(job_id): Parameters<i64>,
-    ) -> Result<CallToolResult, Error> {
+        Parameters(JobRequest { job_id }): Parameters<JobRequest>,
+    ) -> Result<CallToolResult, McpError> {
         let job = Job::find_by_id(job_id)
             .one(&self.db)
             .await
-            .map_err(|e| Error::internal_error(e.to_string(), None))?;
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
         if job.is_none() {
-            return Err(Error::invalid_request("job not found", None));
+            return Err(McpError::invalid_request("job not found", None));
         }
         let job = job.unwrap();
 
         if job.status.is_done() {
-            return Err(Error::invalid_request(
+            return Err(McpError::invalid_request(
                 "job already reached completion",
                 Some(
                     serde_json::to_value(job.status).expect("all status variants are serializable"),
@@ -215,26 +271,38 @@ impl HecateSimulator {
             ));
         }
         if job.status == JobStatus::Canceled {
-            return Err(Error::invalid_request("job already canceled", None));
+            return Err(McpError::invalid_request("job already canceled", None));
         }
 
         let mut job: job::ActiveModel = job.into();
         job.status = Set(JobStatus::Canceled);
         job.update(&self.db)
             .await
-            .map_err(|e| Error::internal_error(e.to_string(), None))?;
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
         Ok(CallToolResult::success(vec![Content::text(&format!(
             "cancelled job {job_id}"
         ))]))
     }
 
-    #[tool(description = "List simulation jobs")]
-    async fn list_unfinished_jobs(&self) -> Result<CallToolResult, Error> {
+    #[tool(description = "List unfinished simulation jobs ids and status.")]
+    async fn list_unfinished_jobs(&self) -> Result<CallToolResult, McpError> {
+        #[derive(DerivePartialModel, FromQueryResult, Serialize)]
+        #[sea_orm(entity = "Job")]
+        struct JobIdAndStatus {
+            id: i64,
+            status: JobStatus,
+        }
+
         let sim_jobs = Job::find()
-            .filter(job::Column::Status.into_simple_expr().not_equals("running"))
+            .filter(
+                job::Column::Status
+                    .into_simple_expr()
+                    .is_in(JobStatus::unfinished_values()),
+            )
+            .into_partial_model::<JobIdAndStatus>()
             .all(&self.db)
             .await
-            .map_err(|e| Error::internal_error(e.to_string(), None))?;
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(
             sim_jobs.to_json(),
@@ -246,8 +314,8 @@ impl HecateSimulator {
     )]
     pub async fn sim_job_info(
         &self,
-        Parameters(job_id): Parameters<i64>,
-    ) -> Result<CallToolResult, Error> {
+        Parameters(JobRequest { job_id }): Parameters<JobRequest>,
+    ) -> Result<CallToolResult, McpError> {
         #[derive(FromQueryResult, Serialize, DerivePartialModel)]
         #[sea_orm(entity = "Job")]
         struct JobInfo {
@@ -271,8 +339,8 @@ impl HecateSimulator {
             .into_partial_model::<JobInfo>()
             .one(&self.db)
             .await
-            .map_err(|e| Error::internal_error(e.to_string(), None))?
-            .ok_or_else(|| Error::resource_not_found("Job not found", None))?;
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?
+            .ok_or_else(|| McpError::resource_not_found("Job not found", None))?;
 
         Ok(CallToolResult::success(vec![Content::text(
             job_info.to_json(),
@@ -282,17 +350,18 @@ impl HecateSimulator {
     #[tool(description = "Get full information about a simulation job (including source files)")]
     pub async fn sim_job_full_info(
         &self,
-        Parameters(job_id): Parameters<i64>,
-    ) -> Result<CallToolResult, Error> {
+        Parameters(JobRequest { job_id }): Parameters<JobRequest>,
+    ) -> Result<CallToolResult, McpError> {
         let job = Job::find_by_id(job_id)
             .one(&self.db)
             .await
-            .map_err(|e| Error::internal_error(e.to_string(), None))?;
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(job.to_json())]))
     }
 }
 
+#[tool_handler]
 impl rmcp::ServerHandler for HecateSimulator {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
@@ -300,6 +369,7 @@ impl rmcp::ServerHandler for HecateSimulator {
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
                 .enable_prompts()
+                .enable_resources()
                 .build(),
             ..Default::default()
         }
@@ -309,7 +379,7 @@ impl rmcp::ServerHandler for HecateSimulator {
         &self,
         GetPromptRequestParam { name, arguments: _ }: GetPromptRequestParam,
         _context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, Error> {
+    ) -> Result<GetPromptResult, McpError> {
         match name.as_str() {
             "system_prompt" => Ok(GetPromptResult {
                 description: Some("This is the system prompt for Hecate.".into()),
@@ -320,7 +390,7 @@ impl rmcp::ServerHandler for HecateSimulator {
                     ),
                 }],
             }),
-            _ => Err(Error::invalid_params("prompt not found", None)),
+            _ => Err(McpError::invalid_params("prompt not found", None)),
         }
     }
 
@@ -328,7 +398,7 @@ impl rmcp::ServerHandler for HecateSimulator {
         &self,
         _request: Option<PaginatedRequestParam>,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ListPromptsResult, Error> {
+    ) -> Result<ListPromptsResult, McpError> {
         Ok(ListPromptsResult {
             next_cursor: None,
             prompts: vec![Prompt::new(

@@ -1,7 +1,5 @@
-use crate::{
-    Symbol,
-    codegen::input_schema::{Condition, ConditionedFunctionExpression, FunctionDef},
-};
+use crate::codegen::input_schema::{Condition, ConditionedFunctionExpression, FunctionDef};
+use symrs::Symbol;
 
 pub(super) fn function_def_to_deal_ii_code(function_def: &FunctionDef) -> String {
     let substs = &[

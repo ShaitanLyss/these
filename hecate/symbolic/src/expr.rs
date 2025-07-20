@@ -27,6 +27,7 @@ pub use integral::*;
 
 pub mod symbol;
 use schemars::{JsonSchema, json_schema};
+use serde::{de, Deserialize, Serialize};
 pub use symbol::*;
 
 pub mod integer;
@@ -979,5 +980,37 @@ impl std::ops::Neg for Box<dyn Expr> {
 
     fn neg(self) -> Self::Output {
         -&*self
+    }
+}
+
+impl Serialize for Box<dyn Expr> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.str())
+    }
+}
+struct ExprVisitor;
+impl<'de> de::Visitor<'de> for ExprVisitor {
+    type Value = Box<dyn Expr>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a properly written function expression")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(v.parse().map_err(|e| E::custom(e))?)
+    }
+}
+impl<'de> Deserialize<'de> for Box<dyn Expr> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(deserializer.deserialize_str(ExprVisitor)?)
     }
 }

@@ -378,7 +378,7 @@ impl System {
         }
     }
 
-    pub(crate) fn vectors(&self) -> impl Iterator<Item = (&dyn Expr, bool)> {
+    pub fn vectors(&self) -> impl Iterator<Item = (&dyn Expr, bool)> {
         self.unknowns
             .iter()
             .map(|u| (u, true))
@@ -391,7 +391,7 @@ impl System {
         shape_matrixes.iter().map(|m| m.get_ref())
     }
 
-    pub(crate) fn num_vectors(&self) -> usize {
+    pub fn num_vectors(&self) -> usize {
         [&self.unknowns, &self.known_unknowns, &self.knowns]
             .iter()
             .map(|v| v.len())

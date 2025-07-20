@@ -6,9 +6,8 @@ use regex::{Captures, Regex};
 
 use crate::codegen::building_block::{ApplyBoundaryConditionConfig, InitialConditionConfig};
 use crate::codegen::input_schema::GenConfig;
-use crate::symbolic::*;
+use symrs::*;
 use crate::{
-    Equation, Expr,
     codegen::input_schema::{FiniteElement, mesh::HyperCubeMesh},
 };
 mod function_def;
@@ -1039,7 +1038,7 @@ fn mat_code_gen(
 
 #[cfg(test)]
 mod tests {
-    use crate::{symbol, symbols};
+    use symrs::{symbol, symbols};
 
     use super::*;
 

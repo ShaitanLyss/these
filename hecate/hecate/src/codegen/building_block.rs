@@ -10,10 +10,8 @@ use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{
-    Equation, Expr,
-    codegen::input_schema::{FunctionDef, GenConfig},
-};
+use crate::codegen::input_schema::{FunctionDef, GenConfig};
+use symrs::{Equation, Expr};
 
 use super::input_schema::{FiniteElement, mesh::Mesh};
 
