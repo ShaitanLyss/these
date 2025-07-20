@@ -23,7 +23,7 @@ jobs:
       #   working-directory: hecate
       #   run: cargo test && cargo test --examples
   release:
-    name: 'Release'
+    name: 'Release-plz release'
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'ShaitanLyss' }}
     needs: test
