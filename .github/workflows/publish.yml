@@ -28,17 +28,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - dir: "hecate/symbolic/"
+          - dir: "/hecate/symbolic/"
             tag_prefix: "symrs-"
-          - dir: "hecate/hecate"
+          - dir: "/hecate/hecate"
             tag_prefix: "hecate-"
-          - dir: "hecate/executor/"
+          - dir: "/hecate/executor/"
             tag_prefix: "executor-"
-          - dir: "hecate/entity/"
+          - dir: "/hecate/entity/"
             tag_prefix: "entity-"
-          - dir: "hecate/migration/"
+          - dir: "/hecate/migration/"
             tag_prefix: "migration-"
-          - dir: "hecate/mcp-server/"
+          - dir: "/hecate/mcp-server/"
             tag_prefix: "mcp-server-"
 
     steps:
