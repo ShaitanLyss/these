@@ -1756,7 +1756,7 @@ dependencies = [
 
 [[package]]
 name = "hecate-symrs"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "const_format",
@@ -1765,7 +1765,6 @@ dependencies = [
  "env_logger",
  "indexmap",
  "itertools 0.14.0",
- "lazy_static",
  "log",
  "num",
  "num-traits",
@@ -1774,7 +1773,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "tera",
  "thiserror 2.0.12",
  "typetag",
  "ucfirst",

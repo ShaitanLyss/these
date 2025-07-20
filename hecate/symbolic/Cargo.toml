@@ -1,6 +1,6 @@
 [package]
 name = "hecate-symrs"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2024"
 rust-version.workspace = true
 license-file.workspace = true
@@ -16,11 +16,9 @@ log = { workspace = true }
 schemars = {workspace = true}
 serde = { workspace = true }
 serde_json = { workspace = true }
-tera = {version = "1.20.0", default-features = false}
 thiserror = { workspace = true}
 anyhow = { workspace = true}
 num-traits = "0.2.19"
-lazy_static = "1.5.0"
 itertools = "0.14.0"
 indexmap = { version = "2.9.0", features = ["serde"] }
 serde_yaml = "0.9.34"
