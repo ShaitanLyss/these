@@ -1651,7 +1651,53 @@ dependencies = [
 ]
 
 [[package]]
-name = "hecate"
+name = "hecate-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "hecate-lib",
+ "log",
+ "serde_yaml",
+ "tera",
+ "tokio",
+]
+
+[[package]]
+name = "hecate-entity"
+version = "0.2.3"
+dependencies = [
+ "hecate-executor",
+ "hecate-lib",
+ "log",
+ "regex 1.11.1",
+ "rmcp",
+ "schemars",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "whoami",
+]
+
+[[package]]
+name = "hecate-executor"
+version = "0.2.3"
+dependencies = [
+ "async-fs",
+ "log",
+ "regex 1.11.1",
+ "russh",
+ "russh-config",
+ "shellexpand",
+ "thiserror 2.0.12",
+ "tokio",
+ "whoami",
+]
+
+[[package]]
+name = "hecate-lib"
 version = "0.2.2"
 dependencies = [
  "anyhow",
@@ -1683,52 +1729,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hecate-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "env_logger",
- "hecate",
- "log",
- "serde_yaml",
- "tera",
- "tokio",
-]
-
-[[package]]
-name = "hecate-entity"
-version = "0.2.3"
-dependencies = [
- "hecate",
- "hecate-executor",
- "log",
- "regex 1.11.1",
- "rmcp",
- "schemars",
- "sea-orm",
- "serde",
- "serde_json",
- "thiserror 2.0.12",
- "whoami",
-]
-
-[[package]]
-name = "hecate-executor"
-version = "0.2.3"
-dependencies = [
- "async-fs",
- "log",
- "regex 1.11.1",
- "russh",
- "russh-config",
- "shellexpand",
- "thiserror 2.0.12",
- "tokio",
- "whoami",
-]
-
-[[package]]
 name = "hecate-mcp-server"
 version = "0.1.0"
 dependencies = [
@@ -1737,9 +1737,9 @@ dependencies = [
  "clap",
  "dirs",
  "env_logger",
- "hecate",
  "hecate-entity",
  "hecate-executor",
+ "hecate-lib",
  "log",
  "migration",
  "regex 1.11.1",

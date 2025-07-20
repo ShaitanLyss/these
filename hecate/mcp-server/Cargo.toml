@@ -6,7 +6,7 @@ license-file.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-hecate = { path = "../hecate" }
+hecate-lib = { workspace = true }
 rmcp.workspace = true
 anyhow = { workspace = true }
 thiserror = { workspace = true }

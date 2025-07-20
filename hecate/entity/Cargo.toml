@@ -8,7 +8,7 @@ version.workspace = true
 
 [dependencies]
 sea-orm = { workspace = true }
-hecate = { path = "../hecate"}
+hecate-lib = { workspace = true }
 serde = { workspace = true }
 schemars = { workspace = true }
 hecate-executor = { path = "../executor"}
