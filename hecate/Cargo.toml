@@ -14,7 +14,7 @@ members = [
 edition = "2024"
 license-file = "../LICENSE"
 rust-version = "1.88"
-version = "0.1.0"
+version = "0.2.3"
 repository = "https://github.com/ShaitanLyss/these"
 
 [workspace.dependencies]
@@ -32,3 +32,4 @@ serde_json = "1.0.140"
 rmcp = { version = "0.3.0", features = ["server", "transport-io"] }
 whoami = "1.6.0"
 async-fs = "2.1.2"
+hecate-symrs = { path = "symbolic", version = "0.2.3"}

@@ -1698,7 +1698,7 @@ dependencies = [
 
 [[package]]
 name = "hecate-entity"
-version = "0.1.0"
+version = "0.2.3"
 dependencies = [
  "hecate",
  "hecate-executor",
@@ -1715,7 +1715,7 @@ dependencies = [
 
 [[package]]
 name = "hecate-executor"
-version = "0.1.0"
+version = "0.2.3"
 dependencies = [
  "async-fs",
  "log",
@@ -1755,7 +1755,7 @@ dependencies = [
 
 [[package]]
 name = "hecate-symrs"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "const_format",
