@@ -3,6 +3,8 @@ name = "hecate-cli"
 version = "0.1.0"
 edition = "2024"
 rust-version.workspace = true
+description = "Command line interface to the Hecate simulation code generator!"
+license-file.workspace = true
 
 [[bin]]
 name = "hecate"
