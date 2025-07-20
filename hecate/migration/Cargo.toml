@@ -1,9 +1,11 @@
 [package]
-name = "migration"
+name = "hecate-migration"
 version = "0.1.0"
 edition = "2024"
-publish = false
 rust-version.workspace = true
+repository.workspace = true
+license-file.workspace = true
+description = "Database migrations for the Hecate simulation code generator!"
 
 [lib]
 name = "migration"
