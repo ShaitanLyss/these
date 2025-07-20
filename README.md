@@ -1,14 +1,45 @@
 # Hecate
 **A thesis on running simulations without writing a single line of code.**
 
+Hecate is a framework for generating HPC-ready simulation code from a mathematical problem definiton, as well as managing local and remote simulation jobs. It can be used as a command line interface *(hecate-cli)*, a MCP server for AI clients *(hecate-mcp-server)* or a rust library *(hecate-lib)*. A graphical interface is planned later on.
 
 ## Prerequisites
-Hecate depends on external libs to compile the code it generates.
-Hecate supports multiple targets, install the ones you need.
+### A rust compiler
+Hecate is developed with the Rust programming language, which is a low-level system language with high-level ergonomics. Thus, compiling Hecate requires a rust toolchain. It can easily be installed through rustup, a rust toolchain manager.
 
-At the time, only deal.II is supported so you need to install it.
+On linux you can install rustup and rust with the following :
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
 
-- [deal.II](https://www.dealii.org/) (required)
+Alternatively, you can directly check alternative installation options on the rustup website : [https://rustup.rs/](https://rustup.rs/).
+
+### Target libraries
+Hecate can generate code for different targets without any external dependency (at the time only deal.II). However, if you want to compile and run the code it generates. You will need the relevant library installed. 
+
+> [!NOTE]  
+> If you only plan on running simulations remotely on HPC clusters, you don't need a local install of target libraries.
+
+Supported targets
+- [deal.II](https://www.dealii.org/)
+
+## Installation
+Once you've got the rust toolchain installed, the installation process is straightforward. You can install any binary using `cargo install BINARY` where `cargo` is the builtin package manager of Rust.
+
+> [!NOTE]
+> If running `cargo` commands fail because cargo isn't found, make sure that the environment was loaded
+
+### Hecate CLI
+```bash
+cargo install hecate-cli
+```
+
+### Hecate MCP server
+```bash
+cargo install hecate-mcp-server
+```
+
+
 
 ## Usage
 ### Hecate CLI
