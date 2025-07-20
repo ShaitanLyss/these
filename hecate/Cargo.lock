@@ -1666,7 +1666,7 @@ dependencies = [
 
 [[package]]
 name = "hecate-entity"
-version = "0.2.3"
+version = "0.1.0"
 dependencies = [
  "hecate-executor",
  "hecate-lib",
