@@ -8,6 +8,7 @@ members = [
   "entity",
   "executor",
   "symbolic",
+  "app/src-tauri",
 ]
 
 [workspace.package]
@@ -29,7 +30,7 @@ env_logger = "0.11.8"
 derive_more = { version = "2.0.1", features = ["deref", "deref_mut", "from_str", "into_iterator", "from"] }
 tokio = "1.46.0"
 serde_json = "1.0.140"
-rmcp = { version = "0.3.0", features = ["server", "transport-io"] }
+rmcp = { version = "0.3.0", features = ["server", "transport-io", "client"] }
 whoami = "1.6.0"
 async-fs = "2.1.2"
 hecate-symrs = { path = "symbolic", version = "0.2.3"}
